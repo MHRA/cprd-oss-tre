@@ -1,6 +1,6 @@
 ---
 name: tre-shared-service-airlock-notifier
-version: 0.4.15
+version: 0.4.18
 description: "A shared service notifying on Airlock Operations"
 registry: azuretre
 dockerfile: Dockerfile.tmpl
@@ -83,10 +83,10 @@ install:
         smtp_server_enable_ssl: "{{ bundle.parameters.smtp_server_enable_ssl }}"
         smtp_from_email: "{{ bundle.parameters.smtp_from_email }}"
       backendConfig:
-        resource_group_name: ${ bundle.parameters.tfstate_resource_group_name }
-        storage_account_name: ${ bundle.parameters.tfstate_storage_account_name }
-        container_name: ${ bundle.parameters.tfstate_container_name }
-        key: ${ bundle.parameters.tre_id }-shared-airlock-notifier
+        resource_group_name: "{{ bundle.parameters.tfstate_resource_group_name }}"
+        storage_account_name: "{{ bundle.parameters.tfstate_storage_account_name }}"
+        container_name: "{{ bundle.parameters.tfstate_container_name }}"
+        key: "{{ bundle.parameters.tre_id }}-shared-airlock-notifier"
       outputs:
         - name: airlock_notifier_logic_app_name
         - name: airlock_notifier_logic_app_resource_group_name
@@ -97,7 +97,7 @@ install:
         - login
       flags:
         identity:
-        username: ${ bundle.credentials.azure_client_id }
+        username: "{{ bundle.credentials.azure_client_id }}"
 
   - az:
       description: "Deploy logic app"
@@ -107,9 +107,9 @@ install:
         - source
         - config-zip
       flags:
-        name: ${ bundle.outputs.airlock_notifier_logic_app_name }
-        resource-group: ${ bundle.outputs.airlock_notifier_logic_app_resource_group_name }
-        subscription: ${ bundle.credentials.azure_subscription_id }
+        name: "{{ bundle.outputs.airlock_notifier_logic_app_name }}"
+        resource-group: "{{ bundle.outputs.airlock_notifier_logic_app_resource_group_name }}"
+        subscription: "{{ bundle.credentials.azure_subscription_id }}"
         src: LogicApp.zip
 
 
@@ -135,7 +135,7 @@ uninstall:
         smtp_server_enable_ssl: "{{ bundle.parameters.smtp_server_enable_ssl }}"
         smtp_from_email: "{{ bundle.parameters.smtp_from_email }}"
       backendConfig:
-        resource_group_name: ${ bundle.parameters.tfstate_resource_group_name }
-        storage_account_name: ${ bundle.parameters.tfstate_storage_account_name }
-        container_name: ${ bundle.parameters.tfstate_container_name }
-        key: ${ bundle.parameters.tre_id }-shared-airlock-notifier
+        resource_group_name: "{{ bundle.parameters.tfstate_resource_group_name }}"
+        storage_account_name: "{{ bundle.parameters.tfstate_storage_account_name }}"
+        container_name: "{{ bundle.parameters.tfstate_container_name }}"
+        key: "{{ bundle.parameters.tre_id }}-shared-airlock-notifier"

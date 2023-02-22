@@ -141,7 +141,7 @@ resource "azurerm_app_service_virtual_network_swift_connection" "airlock_notifie
 }
 
 resource "azurerm_firewall_nat_rule_collection" "airlock_collection_run" {
-  name                = "airlock-notifier-collection-rule"
+  name                = "airlock-notifier-smtp-collection-rule"
   azure_firewall_name = data.azurerm_firewall.fw.name
   resource_group_name = data.azurerm_resource_group.core.name
   priority            = 102
@@ -149,7 +149,7 @@ resource "azurerm_firewall_nat_rule_collection" "airlock_collection_run" {
 
   rule {
     name = "airlock-notifier-collection-${var.tre_id}"
-    source_addresses = [ data.azurerm_virtual_network.core.address_space ]
+    source_addresses = data.azurerm_virtual_network.core.address_space
     destination_ports = [ "${var.smtp_server_port}" ]
     destination_addresses = [
       data.azurerm_public_ip.fwtransit.ip_address
