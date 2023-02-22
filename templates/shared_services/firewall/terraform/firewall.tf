@@ -377,7 +377,7 @@ resource "azurerm_firewall_network_rule_collection" "api_driven_network_rules" {
     content {
       name                  = rule.value.name
       description           = rule.value.description
-      source_addresses      = try(rule.value.source_addresses, ["*"])
+      source_addresses      = try(rule.value.source_addresses, [])
       source_ip_groups      = try(rule.value.source_ip_groups, [])
       destination_addresses = try(rule.value.destination_addresses, [])
       destination_ip_groups = try(rule.value.destination_ip_groups, [])
