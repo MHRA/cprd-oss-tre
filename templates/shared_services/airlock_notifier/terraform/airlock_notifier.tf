@@ -33,7 +33,6 @@ resource "azurerm_service_plan" "notifier_plan" {
   lifecycle { ignore_changes = [tags] }
 }
 
-
 resource "azurerm_servicebus_queue" "notifications_queue" {
   name         = "notifications"
   namespace_id = data.azurerm_servicebus_namespace.core.id
@@ -66,11 +65,17 @@ resource "azurerm_resource_group_template_deployment" "smtp_api_connection" {
     "serverAddress" = {
       value = var.smtp_server_address
     },
+    "serverPort" = {
+      value = var.smtp_server_port
+    },
     "userName" = {
       value = var.smtp_username
     },
     "password" = {
       value = var.smtp_password
+    },
+    "enableSSL" = {
+      value = var.smtp_server_enable_ssl
     }
   })
 
@@ -109,7 +114,6 @@ resource "azurerm_logic_app_standard" "logic_app" {
   lifecycle { ignore_changes = [tags] }
 }
 
-
 resource "azurerm_resource_group_template_deployment" "smtp_api_connection_access_policy" {
   name                = "smtp-api-connection-access-policy"
   resource_group_name = data.azurerm_resource_group.core.name
@@ -131,8 +135,27 @@ resource "azurerm_resource_group_template_deployment" "smtp_api_connection_acces
   lifecycle { ignore_changes = [tags] }
 }
 
-
 resource "azurerm_app_service_virtual_network_swift_connection" "airlock_notifier_integrated_vnet" {
   app_service_id = azurerm_logic_app_standard.logic_app.id
   subnet_id      = data.azurerm_subnet.airlock_notification.id
+}
+
+resource "azurerm_firewall_nat_rule_collection" "airlock_collection_run" {
+  name                = "airlock-notifier-collection-rule"
+  azure_firewall_name = data.azurerm_firewall.fw.name
+  resource_group_name = data.azurerm_resource_group.core.name
+  priority            = 102
+  action              = "Dnat"
+
+  rule {
+    name = "airlock-notifier-collection-${var.tre_id}"
+    source_addresses = [ data.azurerm_virtual_network.core.address_space ]
+    destination_ports = [ "${var.smtp_server_port}" ]
+    destination_addresses = [
+      data.azurerm_public_ip.fwtransit.ip_address
+    ]
+    translated_port = 30
+    translated_address = "${var.smtp_server_address}"
+    protocols = [ "TCP" ]
+  }
 }
