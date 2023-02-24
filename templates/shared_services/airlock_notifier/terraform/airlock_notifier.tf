@@ -2,7 +2,7 @@ resource "azurerm_firewall_network_rule_collection" "resource_processor_subnet_a
   name                = "nrc-resource_processor_allow_appservice_subnet"
   azure_firewall_name = data.azurerm_firewall.fw.name
   resource_group_name = data.azurerm_firewall.fw.resource_group_name
-  priority            = 110
+  priority            = 210
   action              = "Allow"
 
   rule {
@@ -63,10 +63,10 @@ resource "azurerm_resource_group_template_deployment" "smtp_api_connection" {
 
   parameters_content = jsonencode({
     "serverAddress" = {
-      value = var.smtp_server_address
+      value = data.azurerm_public_ip.fwtransit.ip_address
     },
     "serverPort" = {
-      value = var.smtp_server_port
+      value = "2525"
     },
     "userName" = {
       value = var.smtp_username
@@ -144,17 +144,17 @@ resource "azurerm_firewall_nat_rule_collection" "airlock_collection_run" {
   name                = "airlock-notifier-smtp-collection-rule"
   azure_firewall_name = data.azurerm_firewall.fw.name
   resource_group_name = data.azurerm_resource_group.core.name
-  priority            = 102
+  priority            = 202
   action              = "Dnat"
 
   rule {
     name = "airlock-notifier-collection-${var.tre_id}"
-    source_addresses = data.azurerm_virtual_network.core.address_space
-    destination_ports = [ "${var.smtp_server_port}" ]
+    source_addresses = [ "*" ]
+    destination_ports = [ "2525" ]
     destination_addresses = [
       data.azurerm_public_ip.fwtransit.ip_address
     ]
-    translated_port = 30
+    translated_port = "${var.smtp_server_port}"
     translated_address = "${var.smtp_server_address}"
     protocols = [ "TCP" ]
   }
