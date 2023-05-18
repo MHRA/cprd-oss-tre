@@ -5,14 +5,14 @@
     "serverAddress": {
       "type": "string"
     },
-    "serverPort": {
-      "type": "string"
-    },
     "userName": {
       "type": "string"
     },
     "password": {
       "type": "securestring"
+    },
+    "serverPort": {
+      "type": "string"
     },
     "enableSSL": {
       "type": "bool"

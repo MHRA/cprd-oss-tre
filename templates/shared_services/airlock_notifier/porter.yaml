@@ -1,7 +1,7 @@
 ---
 schemaVersion: 1.0.0
 name: tre-shared-service-airlock-notifier
-version: 0.4.0
+version: 0.5.1
 description: "A shared service notifying on Airlock Operations"
 registry: azuretre
 dockerfile: Dockerfile.tmpl
@@ -27,6 +27,10 @@ parameters:
   - name: id
     type: string
     description: "Resource ID"
+  - name: azure_environment
+    type: string
+    default: "AzureCloud"
+    description: "Used by Azure CLI to set the Azure environment"
   - name: tfstate_resource_group_name
     type: string
     description: "Resource group containing the Terraform state storage account"
@@ -43,7 +47,6 @@ parameters:
   - name: smtp_server_port
     env: SMTP_SERVER_PORT
     type: string
-    default: "2525"
   - name: smtp_username
     env: SMTP_USERNAME
     type: string
@@ -62,6 +65,10 @@ parameters:
     env: ARM_USE_MSI
     type: boolean
     default: false
+  - name: arm_environment
+    env: ARM_ENVIRONMENT
+    type: string
+    default: "public"
 
 mixins:
   - exec
@@ -74,15 +81,15 @@ install:
   - terraform:
       description: "Deploy shared service"
       vars:
-        tre_id: "{{ bundle.parameters.tre_id }}"
-        tre_resource_id: "{{ bundle.parameters.id }}"
-        tre_url: "{{ bundle.parameters.tre_url }}"
-        smtp_server_address: "{{ bundle.parameters.smtp_server_address }}"
-        smtp_server_port: "{{ bundle.parameters.smtp_server_port }}"
-        smtp_username: "{{ bundle.parameters.smtp_username }}"
-        smtp_password: "{{ bundle.parameters.smtp_password }}"
-        smtp_server_enable_ssl: "{{ bundle.parameters.smtp_server_enable_ssl }}"
-        smtp_from_email: "{{ bundle.parameters.smtp_from_email }}"
+        tre_id: ${ bundle.parameters.tre_id }
+        tre_resource_id: ${ bundle.parameters.id }
+        tre_url: ${ bundle.parameters.tre_url }
+        smtp_server_address: ${ bundle.parameters.smtp_server_address }
+        smtp_server_port: ${ bundle.parameters.smtp_server_port }
+        smtp_username: ${ bundle.parameters.smtp_username }
+        smtp_password: ${ bundle.parameters.smtpPassword }
+        smtp_server_enable_ssl: ${ bundle.parameters.smtp_server_enable_ssl }
+        smtp_from_email: ${ bundle.parameters.smtp_from_email }
       backendConfig:
         resource_group_name: ${ bundle.parameters.tfstate_resource_group_name }
         storage_account_name: ${ bundle.parameters.tfstate_storage_account_name }
@@ -91,6 +98,14 @@ install:
       outputs:
         - name: airlock_notifier_logic_app_name
         - name: airlock_notifier_logic_app_resource_group_name
+
+  - az:
+      description: "Set Azure Cloud Environment"
+      arguments:
+        - cloud
+        - set
+      flags:
+        name: ${ bundle.parameters.azure_environment }
 
   - az:
       description: "Login to Azure"
@@ -126,15 +141,15 @@ uninstall:
   - terraform:
       description: "Tear down shared service"
       vars:
-        tre_id: "{{ bundle.parameters.tre_id }}"
-        tre_resource_id: "{{ bundle.parameters.id }}"
-        tre_url: "{{ bundle.parameters.tre_url }}"
-        smtp_server_address: "{{ bundle.parameters.smtp_server_address }}"
-        smtp_server_port: "{{ bundle.parameters.smtp_server_port }}"
-        smtp_username: "{{ bundle.parameters.smtp_username }}"
-        smtp_password: "{{ bundle.parameters.smtp_password }}"
-        smtp_server_enable_ssl: "{{ bundle.parameters.smtp_server_enable_ssl }}"
-        smtp_from_email: "{{ bundle.parameters.smtp_from_email }}"
+        tre_id: ${ bundle.parameters.tre_id }
+        tre_resource_id: ${ bundle.parameters.id }
+        tre_url: ${ bundle.parameters.tre_url }
+        smtp_server_address: ${ bundle.parameters.smtp_server_address }
+        smtp_server_port: ${ bundle.parameters.smtp_server_port }
+        smtp_username: ${ bundle.parameters.smtp_username }
+        smtp_password: ${ bundle.parameters.smtpPassword }
+        smtp_server_enable_ssl: ${ bundle.parameters.smtp_server_enable_ssl }
+        smtp_from_email: ${ bundle.parameters.smtp_from_email }
       backendConfig:
         resource_group_name: ${ bundle.parameters.tfstate_resource_group_name }
         storage_account_name: ${ bundle.parameters.tfstate_storage_account_name }
