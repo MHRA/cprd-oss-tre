@@ -155,6 +155,11 @@ data "template_cloudinit_config" "nexus_config" {
     content = jsonencode({
       write_files = [
         {
+          content     = file("${path.module}/../scripts/launch_nexus_container.sh")
+          path        = "/tmp/launch_nexus_container.sh"
+          permissions = "0744"
+        },
+        {
           content     = file("${path.module}/../scripts/configure_nexus_repos.sh")
           path        = "/tmp/configure_nexus_repos.sh"
           permissions = "0744"
