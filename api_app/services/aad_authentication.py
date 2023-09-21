@@ -240,10 +240,12 @@ class AzureADAuthorization(AccessService):
         headers = self._get_auth_header(msgraph_token)
         headers["Content-type"] = "application/json"
         users_graph_data = requests.post(batch_endpoint, json=batch_request_body, headers=headers).json()
+        logging.debug('_get_user_emails: %s', users_graph_data)
         return users_graph_data
 
     def _get_user_emails_from_response(self, users_graph_data):
         user_emails = {}
+        logging.debug('_get_user_emails_from_response(1): %s', users_graph_data)
         for user_data in users_graph_data["responses"]:
             # Handle user endpoint response
             if "users" in user_data["body"]["@odata.context"] and user_data["body"]["mail"] is not None:
@@ -255,6 +257,7 @@ class AzureADAuthorization(AccessService):
                     if group_member["mail"] is not None and group_member["mail"] not in group_members_emails:
                         group_members_emails.append(group_member["mail"])
                 user_emails[user_data["id"]] = group_members_emails
+        logging.debug('_get_user_emails_from_response(2): %s', user_emails)
         return user_emails
 
     def get_workspace_role_assignment_details(self, workspace: Workspace):
