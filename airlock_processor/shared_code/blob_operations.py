@@ -143,6 +143,6 @@ def upload_file(account_name: str, request_id: str, file_path: str):
         logging.error(msg)
         raise ValueError(msg)
 
-    # Upload the file
+    # File upload
     with open(file_path, "rb") as file_data:
         container_client.upload_blob(name=file_name, data=file_data)
