@@ -11,6 +11,9 @@ from azure.storage.blob import ContainerSasPermissions, generate_container_sas, 
 
 from exceptions import NoFilesInRequestException, TooManyFilesInRequestException
 
+# Define a list of allowed file extensions
+ALLOWED_EXTENSIONS = [".json", ".csv", ".txt", ".md", ".rst", ".tex", ".pdf", ".py", ".sql", ".gz", ".zip", ".excel", ".jpg", ".jpeg", ".svg", ".png", ".gif", ".notebook", ".r"]
+
 
 def get_account_url(account_name: str) -> str:
     return f"https://{account_name}.blob.core.windows.net/"
@@ -125,3 +128,21 @@ def get_blob_info_from_blob_url(blob_url: str) -> Tuple[str, str, str]:
 
 def get_blob_url(account_name: str, container_name: str, blob_name='') -> str:
     return f'{get_account_url(account_name)}{container_name}/{blob_name}'
+
+
+def upload_file(account_name: str, request_id: str, file_path: str):
+    blob_service_client = BlobServiceClient(account_url=get_account_url(account_name),
+                                            credential=get_credential())
+    container_client = blob_service_client.get_container_client(request_id)
+
+    # Check if the file extension is allowed
+    file_name = os.path.basename(file_path)
+    file_extension = os.path.splitext(file_name)[1]
+    if file_extension not in ALLOWED_EXTENSIONS:
+        msg = f"File extension {file_extension} is not allowed for uploading."
+        logging.error(msg)
+        raise ValueError(msg)
+
+    # Upload the file
+    with open(file_path, "rb") as file_data:
+        container_client.upload_blob(name=file_name, data=file_data)
