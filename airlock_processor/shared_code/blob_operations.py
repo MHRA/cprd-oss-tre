@@ -133,7 +133,6 @@ def get_blob_url(account_name: str, container_name: str, blob_name='') -> str:
 def upload_file(account_name: str, request_id: str, file_path: str):
     blob_service_client = BlobServiceClient(account_url=get_account_url(account_name),
                                             credential=get_credential())
-    container_client = blob_service_client.get_container_client(request_id)
 
     # Check if the file extension is allowed
     file_name = os.path.basename(file_path)
@@ -143,6 +142,18 @@ def upload_file(account_name: str, request_id: str, file_path: str):
         logging.error(msg)
         raise ValueError(msg)
 
-    # File upload
+    container_client = blob_service_client.get_container_client(request_id)
+
+    # Generate the SAS token
+    udk = blob_service_client.get_user_delegation_key(datetime.datetime.utcnow() - datetime.timedelta(hours=1),
+                                                      datetime.datetime.utcnow() + datetime.timedelta(hours=1))
+
+    sas_token = generate_container_sas(account_name=account_name,
+                                       container_name=request_id,
+                                       user_delegation_key=udk,
+                                       permission=ContainerSasPermissions(read=True, write=True),
+                                       expiry=datetime.datetime.utcnow() + datetime.timedelta(hours=1))
+
+    # Upload the file
     with open(file_path, "rb") as file_data:
-        container_client.upload_blob(name=file_name, data=file_data)
+        container_client.upload_blob(name=file_name, data=file_data, sas=sas_token)
