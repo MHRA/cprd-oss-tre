@@ -11,6 +11,9 @@ from azure.storage.blob import ContainerSasPermissions, generate_container_sas, 
 
 from exceptions import NoFilesInRequestException, TooManyFilesInRequestException
 
+# Define a list of allowed file extensions
+ALLOWED_EXTENSIONS = [".json", ".csv", ".txt", ".md", ".rst", ".tex", ".pdf", ".py", ".sql", ".gz", ".zip", ".excel", ".jpg", ".jpeg", ".svg", ".png", ".gif", ".notebook", ".r"]
+
 
 def get_account_url(account_name: str) -> str:
     return f"https://{account_name}.blob.core.windows.net/"
@@ -125,3 +128,32 @@ def get_blob_info_from_blob_url(blob_url: str) -> Tuple[str, str, str]:
 
 def get_blob_url(account_name: str, container_name: str, blob_name='') -> str:
     return f'{get_account_url(account_name)}{container_name}/{blob_name}'
+
+
+def upload_file(account_name: str, request_id: str, file_path: str):
+    blob_service_client = BlobServiceClient(account_url=get_account_url(account_name),
+                                            credential=get_credential())
+
+    # Check if the file extension is allowed
+    file_name = os.path.basename(file_path)
+    file_extension = os.path.splitext(file_name)[1]
+    if file_extension not in ALLOWED_EXTENSIONS:
+        msg = f"File extension {file_extension} is not allowed for uploading."
+        logging.error(msg)
+        raise ValueError(msg)
+
+    container_client = blob_service_client.get_container_client(request_id)
+
+    # Generate the SAS token
+    udk = blob_service_client.get_user_delegation_key(datetime.datetime.utcnow() - datetime.timedelta(hours=1),
+                                                      datetime.datetime.utcnow() + datetime.timedelta(hours=1))
+
+    sas_token = generate_container_sas(account_name=account_name,
+                                       container_name=request_id,
+                                       user_delegation_key=udk,
+                                       permission=ContainerSasPermissions(read=True, write=True),
+                                       expiry=datetime.datetime.utcnow() + datetime.timedelta(hours=1))
+
+    # Upload the file
+    with open(file_path, "rb") as file_data:
+        container_client.upload_blob(name=file_name, data=file_data, sas=sas_token)
