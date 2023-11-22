@@ -13,3 +13,21 @@ data "azurerm_subnet" "web_app" {
   virtual_network_name = data.azurerm_virtual_network.core.name
   resource_group_name  = var.resource_group_name
 }
+
+data "azurerm_subnet" "shared" {
+  name                 = "SharedSubnet"
+  virtual_network_name = data.azurerm_virtual_network.core.name
+  resource_group_name  = var.resource_group_name
+}
+
+data "azurerm_subnet" "airlock_storage" {
+  name                 = "AirlockStorageSubnet"
+  virtual_network_name = data.azurerm_virtual_network.core.name
+  resource_group_name  = var.resource_group_name
+}
+
+data "azurerm_subnet" "airlock_events" {
+  name                 = "AirlockEventsSubnet"
+  virtual_network_name = data.azurerm_virtual_network.core.name
+  resource_group_name  = var.resource_group_name
+}

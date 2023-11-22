@@ -23,6 +23,26 @@ resource "azurerm_route_table" "virtual_network_gateway" {
     next_hop_in_ip_address = data.azurerm_firewall.fw.ip_configuration[0].private_ip_address
   }
 
+  route {
+    name           = "route2"
+    address_prefix = data.azurerm_subnet.shared.address_prefixes[0]
+    next_hop_type  = "VirtualAppliance"
+    next_hop_in_ip_address = data.azurerm_firewall.fw.ip_configuration[0].private_ip_address
+  }
+  route {
+    name           = "route3"
+    address_prefix = data.azurerm_subnet.airlock_storage.address_prefixes[0]
+    next_hop_type  = "VirtualAppliance"
+    next_hop_in_ip_address = data.azurerm_firewall.fw.ip_configuration[0].private_ip_address
+  }
+
+  route {
+    name           = "route4"
+    address_prefix = data.azurerm_subnet.airlock_events.address_prefixes[0]
+    next_hop_type  = "VirtualAppliance"
+    next_hop_in_ip_address = data.azurerm_firewall.fw.ip_configuration[0].private_ip_address
+  }
+
   lifecycle { ignore_changes = [tags] }
 }
 
@@ -30,7 +50,7 @@ resource "azurerm_subnet" "gateway" {
   name                 = "GatewaySubnet"
   virtual_network_name = data.azurerm_virtual_network.core.name
   resource_group_name  = var.resource_group_name
-  address_prefixes     = [local.gateway_subnet_address_prefix]
+  address_prefixes     = [var.gateway_subnet_address_prefix]
 }
 
 resource "azurerm_subnet_route_table_association" "gateway_route_table" {
