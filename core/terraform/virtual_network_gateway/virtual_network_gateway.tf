@@ -1,3 +1,13 @@
+# Azure Provider source and version being used
+terraform {
+  required_providers {
+    azapi = {
+      source  = "Azure/azapi"
+      version = "~> 1.9.0"
+    }
+  }
+}
+
 resource "azurerm_public_ip" "virtual_network_gateway" {
   name                = "pip-vng-${var.tre_id}"
   location            = var.location
@@ -7,6 +17,19 @@ resource "azurerm_public_ip" "virtual_network_gateway" {
   tags                = local.tre_core_tags
 
   lifecycle { ignore_changes = [tags, zones] }
+}
+
+# There should already exist this route table. However, we must update it,
+# so that traffic is routed through the Virtual network gateway.
+resource "azapi_update_resource" "rt" {
+  type        = "Microsoft.Network/routeTables@2023-05-01"
+  resource_id = data.azurerm_route_table.rt.id
+
+  body = jsonencode({
+    properties = {
+      disableBgpRoutePropagation = true
+    }
+  })
 }
 
 resource "azurerm_route_table" "virtual_network_gateway" {
