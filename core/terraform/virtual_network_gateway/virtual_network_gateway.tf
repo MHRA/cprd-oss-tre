@@ -40,27 +40,28 @@ resource "azurerm_route_table" "virtual_network_gateway" {
   tags                          = local.tre_core_tags
 
   route {
-    name           = "route1"
+    name           = "route-WebAppSubnet"
     address_prefix = data.azurerm_subnet.web_app.address_prefixes[0]
     next_hop_type  = "VirtualAppliance"
     next_hop_in_ip_address = data.azurerm_firewall.fw.ip_configuration[0].private_ip_address
   }
 
   route {
-    name           = "route2"
+    name           = "route-SharedSubnet"
     address_prefix = data.azurerm_subnet.shared.address_prefixes[0]
     next_hop_type  = "VirtualAppliance"
     next_hop_in_ip_address = data.azurerm_firewall.fw.ip_configuration[0].private_ip_address
   }
+
   route {
-    name           = "route3"
+    name           = "route-AirlockStorageSubnet"
     address_prefix = data.azurerm_subnet.airlock_storage.address_prefixes[0]
     next_hop_type  = "VirtualAppliance"
     next_hop_in_ip_address = data.azurerm_firewall.fw.ip_configuration[0].private_ip_address
   }
 
   route {
-    name           = "route4"
+    name           = "route-AirlockEventsSubnet"
     address_prefix = data.azurerm_subnet.airlock_events.address_prefixes[0]
     next_hop_type  = "VirtualAppliance"
     next_hop_in_ip_address = data.azurerm_firewall.fw.ip_configuration[0].private_ip_address
