@@ -108,3 +108,20 @@ resource "azurerm_virtual_network_gateway" "virtual_network_gateway" {
     subnet_id            = azurerm_subnet.gateway.id
   }
 }
+
+# Enable both options 'virtual_wan_traffic_enabled' and 'remote_vnet_traffic_enabled'.
+# Since Terraform's azurerm provider version 3.84.0 these options are supported,
+# but to avoid updating the provider, we are going to use an 'azapi_resource_action' resource.
+resource "azapi_update_resource" "virtual_network_gateway" {
+  type        = "Microsoft.Network/virtualNetworkGateways@2023-11-01"
+  resource_id = "${azurerm_virtual_network_gateway.virtual_network_gateway.id}"
+
+  body = jsonencode({
+    properties = {
+      allowRemoteVnetTraffic = true
+      allowVirtualWanTraffic = true
+    }
+  })
+
+  depends_on = [ azurerm_virtual_network_gateway.virtual_network_gateway ]
+}
