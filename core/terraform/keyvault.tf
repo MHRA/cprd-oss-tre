@@ -121,7 +121,7 @@ resource "azurerm_key_vault_secret" "notify_uk_template_id" {
     azurerm_key_vault_access_policy.deployer
   ]
 
-  lifecycle { ignore_changes = [ value ] }
+  lifecycle { ignore_changes = [value] }
 }
 
 resource "azurerm_key_vault_secret" "notify_uk_url" {
@@ -133,7 +133,7 @@ resource "azurerm_key_vault_secret" "notify_uk_url" {
     azurerm_key_vault_access_policy.deployer
   ]
 
-  lifecycle { ignore_changes = [ value ] }
+  lifecycle { ignore_changes = [value] }
 }
 
 resource "azurerm_key_vault_secret" "notify_uk_secret" {
@@ -145,7 +145,7 @@ resource "azurerm_key_vault_secret" "notify_uk_secret" {
     azurerm_key_vault_access_policy.deployer
   ]
 
-  lifecycle { ignore_changes = [ value ] }
+  lifecycle { ignore_changes = [value] }
 }
 
 resource "azurerm_key_vault_secret" "notify_uk_iss_id" {
@@ -157,7 +157,31 @@ resource "azurerm_key_vault_secret" "notify_uk_iss_id" {
     azurerm_key_vault_access_policy.deployer
   ]
 
-  lifecycle { ignore_changes = [ value ] }
+  lifecycle { ignore_changes = [value] }
+}
+
+resource "azurerm_key_vault_secret" "admin_consent_app_client_id" {
+  name         = "admin-consent-app-client-id"
+  value        = ""
+  key_vault_id = azurerm_key_vault.kv.id
+  tags         = local.tre_core_tags
+  depends_on = [
+    azurerm_key_vault_access_policy.deployer
+  ]
+
+  lifecycle { ignore_changes = [value] }
+}
+
+resource "azurerm_key_vault_secret" "admin_consent_app_client_secret" {
+  name         = "admin-consent-app-client-secret"
+  value        = ""
+  key_vault_id = azurerm_key_vault.kv.id
+  tags         = local.tre_core_tags
+  depends_on = [
+    azurerm_key_vault_access_policy.deployer
+  ]
+
+  lifecycle { ignore_changes = [value] }
 }
 
 resource "azurerm_monitor_diagnostic_setting" "kv" {
