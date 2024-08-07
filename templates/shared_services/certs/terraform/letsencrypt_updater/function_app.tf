@@ -74,7 +74,7 @@ resource "azurerm_linux_function_app" "letsencrypt_updater" {
 
   storage_account_name       = azurerm_storage_account.letsencrypt_updater.name
   storage_account_access_key = azurerm_storage_account.letsencrypt_updater.primary_access_key
-  service_plan_id            = data.azurerm_service_plan.workspace.id
+  service_plan_id            = data.azurerm_service_plan.core.id
   builtin_logging_enabled    = false
 
   # This configuration makes the Function App runs from a file
@@ -83,7 +83,7 @@ resource "azurerm_linux_function_app" "letsencrypt_updater" {
     "WEBSITE_RUN_FROM_PACKAGE"                     = "https://${azurerm_storage_account.letsencrypt_updater.name}.blob.core.windows.net/${azurerm_storage_container.letsencrypt_updater.name}/${azurerm_storage_blob.letsencrypt_updater.name}"
     "WEBSITE_RUN_FROM_PACKAGE_BLOB_MI_RESOURCE_ID" = azurerm_user_assigned_identity.letsencrypt_updater_identity.id
     # "OHDSI_ADMIN_PASSWORD"                         = "@Microsoft.KeyVault(VaultName=${data.azurerm_key_vault.ws.name};SecretName=${azurerm_key_vault_secret.postgres_webapi_admin_password.name})"
-    "APPINSIGHTS_INSTRUMENTATIONKEY"               = data.azurerm_application_insights.ws.instrumentation_key
+    "APPINSIGHTS_INSTRUMENTATIONKEY"               = data.azurerm_application_insights.core.instrumentation_key
     "MANAGED_IDENTITY_CLIENT_ID"                   = "bb5f3339-e03d-4e82-a73e-726432994fc5"
     "VAULT_URL"                                    = "https://kv-${var.tre_id}.vault.azure.net/"
     "NEXUS_CERT_NAME"                              = "nexus-cert-ssl"
@@ -97,7 +97,7 @@ resource "azurerm_linux_function_app" "letsencrypt_updater" {
     }
     # application_insights_connection_string = data.azurerm_application_insights.ws.connection_string
     # This setting will automatically add the environment variable APPINSIGHTS_INSTRUMENTATIONKEY.
-    application_insights_key = data.azurerm_application_insights.ws.instrumentation_key
+    application_insights_key = data.azurerm_application_insights.core.instrumentation_key
   }
 
   # This is the subnet used for VNet integration.
