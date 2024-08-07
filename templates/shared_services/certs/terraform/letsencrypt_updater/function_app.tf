@@ -103,5 +103,5 @@ resource "azurerm_linux_function_app" "letsencrypt_updater" {
   # This is the subnet used for VNet integration.
   virtual_network_subnet_id = data.azurerm_subnet.web_app.id
 
-  tags = local.tre_workspace_service_tags
+  tags = local.tre_shared_service_tags
 }
