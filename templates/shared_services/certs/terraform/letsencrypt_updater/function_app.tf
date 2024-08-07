@@ -84,6 +84,10 @@ resource "azurerm_linux_function_app" "letsencrypt_updater" {
     "WEBSITE_RUN_FROM_PACKAGE_BLOB_MI_RESOURCE_ID" = azurerm_user_assigned_identity.letsencrypt_updater_identity.id
     # "OHDSI_ADMIN_PASSWORD"                         = "@Microsoft.KeyVault(VaultName=${data.azurerm_key_vault.ws.name};SecretName=${azurerm_key_vault_secret.postgres_webapi_admin_password.name})"
     "APPINSIGHTS_INSTRUMENTATIONKEY"               = data.azurerm_application_insights.ws.instrumentation_key
+    "MANAGED_IDENTITY_CLIENT_ID"                   = "bb5f3339-e03d-4e82-a73e-726432994fc5"
+    "VAULT_URL"                                    = "https://kv-${var.tre_id}.vault.azure.net/"
+    "NEXUS_CERT_NAME"                              = "nexus-cert-ssl"
+    "TIME_DELTA_DAYS"                              = 20
   }
 
   # We are running a Python app.
