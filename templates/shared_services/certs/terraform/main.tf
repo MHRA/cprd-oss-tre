@@ -3,7 +3,7 @@ terraform {
   required_providers {
     azurerm = {
       source  = "hashicorp/azurerm"
-      version = "=3.22.0"
+      version = "=3.90.0"
     }
   }
 
@@ -25,4 +25,10 @@ provider "azurerm" {
       recover_soft_deleted_keys         = true
     }
   }
+}
+
+module "letsencrypt_updater" {
+  source = "./letsencrypt_updater"
+  tre_id = var.tre_id
+  tre_resource_id = var.tre_resource_id
 }
