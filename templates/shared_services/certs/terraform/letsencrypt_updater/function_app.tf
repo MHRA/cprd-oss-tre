@@ -88,7 +88,7 @@ resource "azurerm_linux_function_app" "letsencrypt_updater" {
     "WEBSITE_RUN_FROM_PACKAGE_BLOB_MI_RESOURCE_ID" = azurerm_user_assigned_identity.letsencrypt_updater_identity.id
     "AZURE_TENANT_ID"                              = "@Microsoft.KeyVault(SecretUri=${data.azurerm_key_vault_secret.auth_tenant_id.id})"
     "AZURE_CLIENT_ID"                              = "@Microsoft.KeyVault(SecretUri=${data.azurerm_key_vault_secret.api_client_id.id})"
-    "AZURE_CLIENT_SECRET "                         = "@Microsoft.KeyVault(SecretUri=${data.azurerm_key_vault_secret.api_client_secret.id})"
+    "AZURE_CLIENT_SECRET"                          = "@Microsoft.KeyVault(SecretUri=${data.azurerm_key_vault_secret.api_client_secret.id})"
     "MANAGED_IDENTITY_CLIENT_ID"                   = azurerm_user_assigned_identity.letsencrypt_updater_identity.client_id
     "VAULT_URL"                                    = "https://kv-${var.tre_id}.vault.azure.net/"
     "NEXUS_CERT_NAME"                              = "nexus-cert-ssl"
