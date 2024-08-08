@@ -15,6 +15,10 @@ resource "azurerm_key_vault_access_policy" "letsencrypt_updater_access_policy" {
   secret_permissions = [
     "Get", "List"
   ]
+
+  certificate_permissions = [
+    "Get", "List"
+  ]
 }
 
 resource "azurerm_role_assignment" "assign_identity_storage_blob_data_contributor" {
@@ -82,9 +86,10 @@ resource "azurerm_linux_function_app" "letsencrypt_updater" {
   app_settings = {
     "WEBSITE_RUN_FROM_PACKAGE"                     = "https://${azurerm_storage_account.letsencrypt_updater.name}.blob.core.windows.net/${azurerm_storage_container.letsencrypt_updater.name}/${azurerm_storage_blob.letsencrypt_updater.name}"
     "WEBSITE_RUN_FROM_PACKAGE_BLOB_MI_RESOURCE_ID" = azurerm_user_assigned_identity.letsencrypt_updater_identity.id
-    # "OHDSI_ADMIN_PASSWORD"                         = "@Microsoft.KeyVault(VaultName=${data.azurerm_key_vault.ws.name};SecretName=${azurerm_key_vault_secret.postgres_webapi_admin_password.name})"
-    "APPINSIGHTS_INSTRUMENTATIONKEY"               = data.azurerm_application_insights.core.instrumentation_key
-    "MANAGED_IDENTITY_CLIENT_ID"                   = "bb5f3339-e03d-4e82-a73e-726432994fc5"
+    "AZURE_TENANT_ID"                              = "@Microsoft.KeyVault(SecretUri=${data.azurerm_key_vault_secret.auth_tenant_id.id})"
+    "AZURE_CLIENT_ID"                              = "@Microsoft.KeyVault(SecretUri=${data.azurerm_key_vault_secret.api_client_id.id})"
+    "AZURE_CLIENT_SECRET "                         = "@Microsoft.KeyVault(SecretUri=${data.azurerm_key_vault_secret.api_client_secret.id})"
+    "MANAGED_IDENTITY_CLIENT_ID"                   = azurerm_user_assigned_identity.letsencrypt_updater_identity.client_id
     "VAULT_URL"                                    = "https://kv-${var.tre_id}.vault.azure.net/"
     "NEXUS_CERT_NAME"                              = "nexus-cert-ssl"
     "TIME_DELTA_DAYS"                              = 20
@@ -98,6 +103,7 @@ resource "azurerm_linux_function_app" "letsencrypt_updater" {
     # application_insights_connection_string = data.azurerm_application_insights.ws.connection_string
     # This setting will automatically add the environment variable APPINSIGHTS_INSTRUMENTATIONKEY.
     application_insights_key = data.azurerm_application_insights.core.instrumentation_key
+    always_on                = true
   }
 
   # This is the subnet used for VNet integration.
