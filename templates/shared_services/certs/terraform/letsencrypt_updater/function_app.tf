@@ -93,6 +93,8 @@ resource "azurerm_linux_function_app" "letsencrypt_updater" {
     "VAULT_URL"                                    = "https://kv-${var.tre_id}.vault.azure.net/"
     "NEXUS_CERT_NAME"                              = "nexus-cert-ssl"
     "TIME_DELTA_DAYS"                              = 20
+    "NOTIFY_UK_API_KEY"                            = "tre_salesforce_integration-4f09ada1-6aa6-4352-9eb5-41a1ab45c111-b46b243f-3de5-4478-8e33-abe989b690ce"
+    "NOTIFY_UK_TEMPLATE_ID"                        = "670432d9-02fd-48f9-9972-7d7e2a037ae4"
   }
 
   # We are running a Python app.
