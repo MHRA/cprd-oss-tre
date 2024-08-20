@@ -94,7 +94,7 @@ resource "azurerm_linux_function_app" "letsencrypt_updater" {
     "NEXUS_CERT_NAME"                              = "nexus-cert-ssl"
     "TIME_DELTA_DAYS"                              = 20
     "NOTIFY_UK_API_KEY"                            = "@Microsoft.KeyVault(SecretUri=${azurerm_key_vault_secret.notify_uk_api_key.id})"
-    "NOTIFY_UK_TEMPLATE_ID_CERTS"                  = "@Microsoft.KeyVault(SecretUri=${azurerm_key_vault_secret.notify_uk_template_id_nexus_certs.id})"
+    "NOTIFY_UK_TEMPLATE_ID_NEXUS_CERTS"            = "@Microsoft.KeyVault(SecretUri=${azurerm_key_vault_secret.notify_uk_template_id_nexus_certs.id})"
   }
 
   # We are running a Python app.
