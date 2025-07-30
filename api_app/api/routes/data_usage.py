@@ -5,7 +5,7 @@ import logging
 
 from resources import strings
 from services.authentication import get_current_workspace_owner_or_tre_user_or_tre_admin
-from models.domain.data_usage import MHRAWorkspaceDataUsage, MHRAStorageAccountLimits, MHRAStorageAccountLimitsItem, StorageAccountLimitsInput
+from models.domain.data_usage import MHRAPerstudyItem, MHRAPerstudyItemList, MHRAWorkspaceDataUsage, MHRAStorageAccountLimits, MHRAStorageAccountLimitsItem, PerstudyInput, StorageAccountLimitsInput
 from models.schemas.data_usage import get_workspace_data_usage_responses, get_storage_account_limits_responses, get_storage_info_responses
 from models.schemas.storage_info_request import StorageInfoRequest
 from services.data_usage import DataUsageService, data_usage_service_factory
@@ -70,4 +70,30 @@ async def get_workspace_storage(storage_info_request :StorageInfoRequest = None,
             return await data_usage_service.get_workspace_data_usage()
     except:
         logging.exception("Failed to retrieve Workspace data usage.")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=strings.API_GET_WORKSPACE_DATA_USAGE_INTERNAL_SERVER_ERROR)
+
+@set_storage_account_limits.post("/store_protocol_id", response_model=MHRAPerstudyItem,
+                       status_code=status.HTTP_200_OK,
+                       name=strings.API_CREATE_PROTOCOL_ID_FOR_STORAGE_ACCOUNT,
+                       dependencies=[Depends(get_current_workspace_owner_or_tre_user_or_tre_admin)])
+async def set_protocol_id_method(perstudy_properties: PerstudyInput = Depends(),
+                                            data_usage_service: DataUsageService = Depends(data_usage_service_factory)) -> MHRAPerstudyItem:
+    try:
+        return await data_usage_service.set_protocol_id(perstudy_properties)
+    except HTTPException as ex:
+            logging.info(f"\t{ex.detail}")
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=ex.detail)
+    except:
+        logging.exception(f"{strings.API_GET_WORKSPACE_DATA_USAGE_INTERNAL_SERVER_ERROR}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=strings.API_GET_WORKSPACE_DATA_USAGE_INTERNAL_SERVER_ERROR)
+
+@get_storage_account_limits.get("/perstudy_items", response_model=MHRAPerstudyItemList,
+                       status_code=status.HTTP_200_OK,
+                       name=strings.API_GET_PERSTUDY_ITEMS,
+                       dependencies=[Depends(get_current_workspace_owner_or_tre_user_or_tre_admin)])
+async def get_perstudy_items_method(data_usage_service: DataUsageService = Depends(data_usage_service_factory)) -> MHRAStorageAccountLimits:
+    try:
+        return await data_usage_service.get_perstudy_items()
+    except:
+        logging.exception("Failed to retrieve Per study item.")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=strings.API_GET_WORKSPACE_DATA_USAGE_INTERNAL_SERVER_ERROR)

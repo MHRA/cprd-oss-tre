@@ -1,5 +1,6 @@
 import datetime, logging, math
-from models.domain.data_usage import MHRAWorkspaceDataUsage, MHRAContainerUsageItem, MHRAFileshareUsageItem, MHRAStorageAccountLimits, MHRAStorageAccountLimitsItem, StorageAccountLimitsInput
+import uuid
+from models.domain.data_usage import MHRAPerstudyItem, MHRAPerstudyItemList, MHRAWorkspaceDataUsage, MHRAContainerUsageItem, MHRAFileshareUsageItem, MHRAStorageAccountLimits, MHRAStorageAccountLimitsItem, PerstudyInput, StorageAccountLimitsInput
 from models.schemas.storage_info_request import StorageInfoRequest
 from core import config, credentials
 from resources import constants, strings
@@ -235,6 +236,69 @@ class DataUsageService:
             logging.exception("Unknown error when calling table_client.")
             raise Exception("Unknown error when calling table_client.")
 
+    async def set_protocol_id(self, perstudy_properties: PerstudyInput) -> MHRAPerstudyItem:
+        container_perstudy_table = constants.WORKSPACE_PERSTUDY_USAGE_TABLE_NAME
+
+        try:
+            # Creating filter for selecting the correct storage account
+            storage_name = perstudy_properties.storage_name
+            protocol_id = perstudy_properties.protocol_id
+
+            # For performing this operation, the identity used for running the API must have the role
+            # "Perstudy Table Data Reader" (the scope is the storage account holding the table).
+            table_client = self.client.get_table_client(table_name=container_perstudy_table)
+
+
+            # Create a new entity
+            new_entity = {
+                "PartitionKey": None,
+                "RowKey": str(uuid.uuid4()),
+                "StorageName": storage_name,
+                "ProtocolId": protocol_id,
+                "UpdateTime": datetime.utcnow().isoformat()
+            }
+
+            # Insert the entity
+            table_client.create_entity(entity=new_entity)
+
+            perstudy_item = MHRAPerstudyItem(
+                storage_name=storage_name,
+                protocol_id=protocol_id
+            )
+
+            return perstudy_item
+
+        except:
+            logging.exception("Unknown error when calling table_client.")
+            raise Exception("Unknown error when calling table_client.")
+
+    async def get_perstudy_items(self) -> MHRAPerstudyItemList:
+        container_perstudy_table = constants.WORKSPACE_PERSTUDY_USAGE_TABLE_NAME
+
+        try:
+            perstudy_items = []
+
+            # For performing this operation, the identity used for running the API must have the role
+            # "Storage Table Data Reader" (the scope is the storage account holding the table).
+            table_client = self.client.get_table_client(table_name=container_perstudy_table)
+            entities = table_client.list_entities()
+
+            for entity in entities:
+                perstudy_items.append(
+                     MHRAPerstudyItem(
+                        storage_name=entity['StorageName'],
+                        protocol_id=entity['ProtocolId']
+                    )
+                )
+
+            return MHRAPerstudyItemList(perstudy_items=perstudy_items)
+
+        except HttpResponseError:
+            logging.exception("HTTP error when calling table_client.")
+            raise HttpResponseError
+        except:
+            logging.exception("Unknown error when calling table_client.")
+            raise Exception("Unknown error when calling table_client.")
 
 @lru_cache(maxsize=None)
 def data_usage_service_factory() -> DataUsageService:

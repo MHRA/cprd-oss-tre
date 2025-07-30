@@ -279,4 +279,8 @@ DATA_USAGE_LIMITS_MUST_BE_POSITIVE = "Limit value must positive"
 DATA_USAGE_WORKSPACE_OR_STORAGE_ACCOUNT_NOT_FOUND = "Workspace or Storage Account not found"
 API_GET_WORKSPACE_DATA_USAGE_CLIENTS = "Return Workspace data usage."
 API_CREATE_WORKSPACE_DATA_USAGE_CLIENTS = "Set Workspace data limits."
+API_CREATE_PROTOCOL_ID_FOR_STORAGE_ACCOUNT = "Set Protocol Id ."
+API_GET_PERSTUDY_ITEMS = "Return Per study item."
 API_GET_WORKSPACE_DATA_USAGE_INTERNAL_SERVER_ERROR = "Error returning Workspace data usage."
+
+API_TO_GET_DATA_MOVE_TRANSACTION= "Get Data Move Transaction details"

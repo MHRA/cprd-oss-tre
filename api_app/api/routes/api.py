@@ -8,7 +8,7 @@ from fastapi.openapi.utils import get_openapi
 from api.dependencies.database import get_repository
 from db.repositories.workspaces import WorkspaceRepository
 from api.routes import health, ping, workspaces, workspace_templates, workspace_service_templates, user_resource_templates, \
-    shared_services, shared_service_templates, migrations, costs, airlock, operations, metadata, notify, data_usage
+    shared_services, shared_service_templates, migrations, costs, airlock, operations, metadata, notify, data_usage , data_move
 from core import config
 from resources import strings
 
@@ -56,6 +56,7 @@ core_router.include_router(data_usage.set_storage_account_limits, tags=["data us
 core_router.include_router(notify.send_message_support_team, tags=["support"])
 core_router.include_router(workspaces.user_resources_workspace_core_router, tags=["user resources"])
 core_router.include_router(airlock.airlock_core_router, tags=["airlock"])
+core_router.include_router(data_move.datmove_workspace_router, tags=["Data Move"])
 
 core_swagger_router = APIRouter()
 swagger_disabled_router = APIRouter()
@@ -112,6 +113,7 @@ workspace_router.include_router(workspaces.workspace_services_workspace_router, 
 workspace_router.include_router(workspaces.user_resources_workspace_router, tags=["user resources"])
 workspace_router.include_router(costs.costs_workspace_router, tags=["workspace costs"])
 workspace_router.include_router(airlock.airlock_workspace_router, tags=["airlock"])
+workspace_router.include_router(data_move.datmove_workspace_router, tags=["Data Move"])
 
 workspace_swagger_router = APIRouter()
 workspace_swagger_disabled_router = APIRouter()

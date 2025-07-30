@@ -16,6 +16,20 @@ class StorageAccountLimitsInput(BaseModel):
             }
         }
 
+class PerstudyInput(BaseModel):
+    workspace_name: str = Field(title="Workspace name to be updated")
+    storage_name: str = Field(title="Storage Account name to be updated")
+    protocol_id: str = Field(title="Protocol Id")
+
+    class Config:
+        schema_extra = {
+            "example": {
+                "workspace_name": "rg-cprdtest-ws-6c77",
+                "storage_name": "stgws6c77",
+                "protocol_id": "25_123456"
+            }
+        }
+
 class MHRAStorageAccountLimitsItem(BaseModel):
     workspace_name: str
     storage_name: str
@@ -48,3 +62,10 @@ class MHRAFileshareUsageItem(BaseModel):
 class MHRAWorkspaceDataUsage(BaseModel):
     workspace_container_usage_items: List[MHRAContainerUsageItem]
     workspace_fileshare_usage_items: List[MHRAFileshareUsageItem]
+
+class MHRAPerstudyItem(BaseModel):
+    storage_name: str
+    protocol_id: str
+
+class MHRAPerstudyItemList(BaseModel):
+    perstudy_items: List[MHRAPerstudyItem]
