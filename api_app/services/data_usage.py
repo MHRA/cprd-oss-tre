@@ -1,4 +1,11 @@
 import datetime, logging, math
+import uuid
+
+import httpx
+
+
+from db.repositories.workspaces import WorkspaceRepository
+from models.schemas.container_reation_request import ContainerCreateRequest
 from models.domain.data_usage import MHRAWorkspaceDataUsage, MHRAContainerUsageItem, MHRAFileshareUsageItem, MHRAStorageAccountLimits, MHRAStorageAccountLimitsItem, StorageAccountLimitsInput
 from models.schemas.storage_info_request import StorageInfoRequest
 from core import config, credentials
@@ -6,6 +13,12 @@ from resources import constants, strings
 from functools import lru_cache
 from fastapi import HTTPException, status
 from azure.data.tables import TableServiceClient, UpdateMode
+from azure.storage.blob import BlobServiceClient
+from azure.mgmt.authorization import AuthorizationManagementClient
+from azure.mgmt.storage import StorageManagementClient
+from msgraph import GraphServiceClient
+from msgraph.generated.models.group import Group
+from azure.identity import ClientSecretCredential
 
 # make sure CostService is singleton
 @lru_cache(maxsize=None)
@@ -26,6 +39,9 @@ class DataUsageService:
             credential=credentials.get_credential(),
             headers={"ClientType": config.CLIENT_TYPE_CUSTOM_HEADER}
         )
+
+    def get_account_url(self,account_name: str) -> str:
+        return f"https://{account_name}.blob.core.windows.net/"
 
     async def get_workspace_data_usage(self) -> MHRAWorkspaceDataUsage:
         container_usage_table = constants.WORKSPACE_CONTAINER_USAGE_TABLE_NAME
@@ -235,6 +251,104 @@ class DataUsageService:
             logging.exception("Unknown error when calling table_client.")
             raise Exception("Unknown error when calling table_client.")
 
+
+    async def create_container(self, container_create_request: ContainerCreateRequest, workspace_repo: WorkspaceRepository):
+        workspace = await workspace_repo.get_workspace_by_id(container_create_request.workspaceId)
+        account_name = constants.STORAGE_ACCOUNT_NAME_WORKSPACE_RESOURCE_GROUP.format(container_create_request.workspaceId[-4:])
+        #await self.create_group(container_create_request)
+        credential=credentials.get_credential()
+
+        blob_service_client = BlobServiceClient(
+            account_url=self.get_account_url(account_name),
+            credential=credentials.get_credential()
+        )
+        container_name = container_create_request.protocolId
+        try:
+            container_client = await blob_service_client.create_container(container_name)
+        except Exception as e:
+            raise Exception(f"Error occurred while creating container: {e}")
+
+        template = workspace.templateName
+        folder_names = ['Type1/', 'Type2/']
+        folderName = "ReceiveFromExplore" if template.endswith("a-msl") else "SendToAnalyse"
+        folder_names.append(folderName + '/')
+
+        for folder_name in folder_names:
+            try:
+                await container_client.upload_blob(folder_name, b'', overwrite=False)
+            except Exception as e:
+                raise Exception(f"Error occurred while creating blob folder '{folder_name}': {e}")
+
+        return {"container": container_name, "folders": folder_names}
+
+
+    async def create_group(self, container_create_request: ContainerCreateRequest):
+
+        entra_group_name = f"Researcher_Data_Access_{container_create_request.protocolId}"
+        return await self._create_entra_group(credentials, entra_group_name)
+
+    async def _create_entra_group(self, credential, entra_group_name):
+        graph_client = GraphServiceClient(credentials=credential)
+        group_data = Group(
+            display_name=entra_group_name,
+            mail_enabled=False,
+            mail_nickname=entra_group_name,
+            security_enabled=True
+        )
+
+        try:
+            return await graph_client.groups.post(group_data)
+        except httpx.ConnectError as e:
+            raise Exception(f"Error creating group: {e}")
+
+    async def assign_role_to_group(self, group,workspaceId):
+        subscription_id = config.SUBSCRIPTION_ID
+        credential = credentials.get_credential()
+        storage_account = await self._get_storage_account(credential,workspaceId)
+        role_definition_id = await self._get_role_definition_id(credential, subscription_id)
+        await self._create_role_assignment(credential, subscription_id, storage_account.id, group.id, role_definition_id)
+
+    async def _get_storage_account(self, credential, workspaceId):
+        subscription_id = config.SUBSCRIPTION_ID
+        storage_account_name = constants.STORAGE_ACCOUNT_NAME_WORKSPACE_RESOURCE_GROUP.format(workspaceId)
+        resource_group_name = constants.WORKSPACE_RESOURCE_GROUP_NAME.format(config.TRE_ID, workspaceId)
+        storage_client = StorageManagementClient(credential, subscription_id)
+        try:
+            return storage_client.storage_accounts.get_properties(
+                resource_group_name=resource_group_name,
+                account_name=storage_account_name
+            )
+        except Exception as e:
+            raise Exception(f"Error getting storage account: {e}")
+
+    async def _get_role_definition_id(self, credential, subscription_id):
+        authorization_client = AuthorizationManagementClient(credential, subscription_id)
+        role_name = 'Storage Blob Data Contributor'
+        role_definitions = authorization_client.role_definitions.list(
+            scope=f"/subscriptions/{subscription_id}"
+        )
+
+        role_definition = next((rd for rd in role_definitions if rd.role_name == role_name), None)
+        if role_definition is None:
+            raise Exception(f"Role definition not found for {role_name}")
+
+        return role_definition.id.split('/')[-1]
+
+    async def _create_role_assignment(self, credential, subscription_id, scope, principal_id, role_definition_id):
+        authorization_client = AuthorizationManagementClient(credential, subscription_id)
+        role_assignment_name = str(uuid.uuid4())
+
+        try:
+            await authorization_client.role_assignments.create(
+                scope=scope,
+                role_assignment_name=role_assignment_name,
+                parameters={
+                    "role_definition_id": f"/subscriptions/{subscription_id}/providers/Microsoft.Authorization/roleDefinitions/{role_definition_id}",
+                    "principal_id": principal_id
+                }
+            )
+        except Exception as e:
+            raise Exception(f"Error creating role assignment: {e}")
 
 @lru_cache(maxsize=None)
 def data_usage_service_factory() -> DataUsageService:
