@@ -592,6 +592,7 @@ async def retrieve_active_vm_count(
                 # Filter resources based on user roles
                 if ("WorkspaceResearcher" in user.roles or "AirlockManager" in user.roles) and "WorkspaceOwner" not in user.roles:
                     user_resources = [resource for resource in user_resources if resource.ownerId == user.id]
+                    count = user_resources.count
 
                 # Count active VMs
                 for user_resource in user_resources:
@@ -603,7 +604,7 @@ async def retrieve_active_vm_count(
         logging.exception("Error while retrieving active VM count")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to retrieve active VM count")
 
-    return ResourceCount(count=total_count)
+    return ResourceCount(totalCount=count,activeCount=total_count)
 
 #e-mslWorkspaces not peered with a-msl
 @workspaces_core_router.get("/emsl_workspaces", response_model=EmslWorkspaceList, name=strings.API_GET_EMSL_WORKSPACES)
