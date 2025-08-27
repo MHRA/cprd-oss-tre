@@ -84,7 +84,8 @@ async def create_container(conatiner_create_request: ContainerCreateRequest = No
                            workspace_repo: WorkspaceRepository = Depends(get_repository(WorkspaceRepository))) -> dict:
     try:
 
-        await data_usage_service.create_container(conatiner_create_request, workspace_repo)
+        #await data_usage_service.create_container(conatiner_create_request, workspace_repo)
+        await data_usage_service.create_group(conatiner_create_request)
         return {"message": "Container created successfully"}
     except Exception as e:
         logging.exception("Failed to create container.")

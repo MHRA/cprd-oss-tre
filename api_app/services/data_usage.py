@@ -264,7 +264,7 @@ class DataUsageService:
         )
         container_name = container_create_request.protocolId
         try:
-            container_client = await blob_service_client.create_container(container_name)
+            container_client =  blob_service_client.create_container(container_name)
         except Exception as e:
             raise Exception(f"Error occurred while creating container: {e}")
 
@@ -275,7 +275,8 @@ class DataUsageService:
 
         for folder_name in folder_names:
             try:
-                await container_client.upload_blob(folder_name, b'', overwrite=False)
+                blob_name = f"{folder_name}/.placeholder"
+                container_client.upload_blob(blob_name, b'', overwrite=False)
             except Exception as e:
                 raise Exception(f"Error occurred while creating blob folder '{folder_name}': {e}")
 
@@ -283,11 +284,7 @@ class DataUsageService:
 
 
     async def create_group(self, container_create_request: ContainerCreateRequest):
-        #credential = credentials.get_credential()
-        tenant_id = "e527ea5c-6258-4cd2-a27f-8bd237ec4c26"
-        client_id = "dd4f31d1-26a2-478d-9cac-e1668ca9c8d8"
-        client_secret = ""
-        credential = ClientSecretCredential(tenant_id, client_id, client_secret)
+        credential = credentials.get_credential()
         entra_group_name = f"Researcher_Data_Access_{container_create_request.protocolId}"
         return await self._create_entra_group(credential, entra_group_name)
 
