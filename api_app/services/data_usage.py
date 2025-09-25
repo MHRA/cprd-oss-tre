@@ -1,4 +1,6 @@
 import datetime, logging, math
+
+import httpx
 from db.repositories.workspaces import WorkspaceRepository
 from models.schemas.container_reation_request import ContainerCreateRequest
 from models.domain.data_usage import MHRAProtocolItem, MHRAProtocolList, MHRAWorkspaceDataUsage, MHRAContainerUsageItem, MHRAFileshareUsageItem, MHRAStorageAccountLimits, MHRAStorageAccountLimitsItem, StorageAccountLimitsInput, WorkspaceDataUsage
@@ -9,6 +11,10 @@ from functools import lru_cache
 from fastapi import HTTPException, status
 from azure.data.tables import TableServiceClient, UpdateMode
 from azure.storage.blob import BlobServiceClient
+from msgraph import GraphServiceClient
+from msgraph.generated.models.group import Group
+from azure.identity import ClientSecretCredential
+from azure.keyvault.secrets import SecretClient
 
 # make sure CostService is singleton
 @lru_cache(maxsize=None)
@@ -369,6 +375,46 @@ class DataUsageService:
         else:
             size_tb = size_gb / 1024
             return f"{size_tb:.2f}TB"
+
+
+    async def create_group(self, container_create_request: ContainerCreateRequest):
+
+        tenant_id = config.AAD_TENANT_ID
+        client_id = self._fetch_key_valut("ssbs-management-app-registration-client-id")
+        client_secret = self._fetch_key_valut("ssbs-management-app-registration-client-secret")
+
+        credential = ClientSecretCredential(
+            tenant_id = tenant_id,
+            client_id = client_id,
+            client_secret = client_secret
+        )
+
+        entra_group_name = f"Researcher_Data_Access_{container_create_request.protocolId}"
+        return await self._create_entra_group(credential, entra_group_name)
+
+
+    async def _create_entra_group(self, credential, entra_group_name):
+        graph_client = GraphServiceClient(credentials=credential)
+        group_data = Group(
+            display_name=entra_group_name,
+            mail_enabled=False,
+            mail_nickname=entra_group_name,
+            security_enabled=True
+        )
+
+        try:
+            return await graph_client.groups.post(group_data)
+        except httpx.ConnectError as e:
+            raise Exception(f"Error creating group: {e}")
+
+    async def _fetch_key_valut(self, secret_name) -> str:
+        key_vault_name = constants.CORE_KEYVAULT_NAME.format(config.TRE_ID)
+        key_vault_url = f"https://{key_vault_name}.vault.azure.net/"
+        credential = credentials.get_credential()
+        client = SecretClient(vault_url=key_vault_url, credential=credential)
+        retrieved_secret = client.get_secret(secret_name)
+        return retrieved_secret.value
+
 
 @lru_cache(maxsize=None)
 def data_usage_service_factory() -> DataUsageService:

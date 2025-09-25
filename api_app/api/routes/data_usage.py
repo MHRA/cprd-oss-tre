@@ -110,3 +110,17 @@ async def create_container(conatiner_create_request: ContainerCreateRequest = No
     except Exception as e:
         logging.exception("Failed to create container.")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to create container")
+
+@data_usage_router.post("/roles-group-create",
+                       status_code=status.HTTP_201_CREATED,
+                       name=strings.API_CREATE_CONTAINER_AND_FOLDER,
+                       dependencies=[Depends(get_current_workspace_owner_or_tre_user_or_tre_admin)])
+async def create_roles_group(conatiner_create_request: ContainerCreateRequest = None,
+                           data_usage_service: DataUsageService = Depends(data_usage_service_factory)) -> dict:
+    try:
+
+        await data_usage_service.create_group(conatiner_create_request)
+        return {"message": "Roles group created successfully"}
+    except Exception as e:
+        logging.exception("Failed to create Roles group.")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to create Roles group.")
