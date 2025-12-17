@@ -24,7 +24,7 @@ from core.events import create_start_app_handler, create_stop_app_handler
 from services.logging import disable_unwanted_loggers, initialize_logging, telemetry_processor_callback_function
 from services.cost_update_service import update_workspace_costs
 from service_bus.deployment_status_updater import DeploymentStatusUpdater
-
+from apscheduler.schedulers.background import BackgroundScheduler
 
 def get_application() -> FastAPI:
     application = FastAPI(
@@ -91,10 +91,20 @@ async def watch_deployment_status() -> None:
 async def update_airlock_request_status() -> None:
     await receive_step_result_message_and_update_status(app)
 
+
+def start_cost_update_scheduler():
+    scheduler = BackgroundScheduler()
+    scheduler.add_job(
+        lambda: asyncio.run(update_workspace_costs(app)),
+        'cron',
+        hour=1,
+        minute=0
+    )
+    scheduler.start()
+
 @app.on_event("startup")
-@repeat_every(cron="0 2 * * *", logger=logging.getLogger(), raise_exceptions=False)
-async def update_cost_for_workspace() -> None:
-    await update_workspace_costs(app)
+def schedule_cost_update():
+    start_cost_update_scheduler()
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000, loop="asyncio")

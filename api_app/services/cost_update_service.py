@@ -65,7 +65,7 @@ async def update_workspace_costs(
             return
 
         new_entity = {
-            "PartitionKey": str(uuid4()),
+            "PartitionKey": "None",
             "RowKey": str(uuid4()),
             "Timestamp": datetime.utcnow().isoformat() + 'Z',
             "FromDate": to_iso8601(from_date),
