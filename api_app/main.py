@@ -94,8 +94,9 @@ async def update_airlock_request_status() -> None:
 
 def start_cost_update_scheduler():
     scheduler = BackgroundScheduler()
+    loop = asyncio.get_event_loop()
     scheduler.add_job(
-        lambda: asyncio.run(update_workspace_costs(app)),
+        lambda: asyncio.run_coroutine_threadsafe(update_workspace_costs(app), loop),
         'cron',
         hour=1,
         minute=0

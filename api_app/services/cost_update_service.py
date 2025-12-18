@@ -11,7 +11,6 @@ from models.domain.costs import GranularityEnum, WorkspaceCostReport
 from core import config, credentials
 from resources import constants
 from azure.data.tables import TableServiceClient, UpdateMode
-from fastapi import Depends
 
 def to_iso8601(dt, end_of_day=False):
 
