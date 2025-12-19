@@ -73,3 +73,6 @@ BANK_HOLIDAYS_FILE_PATH = "/api/resources/bank-holidays.json"
 
 # Custom header for setting ClientType
 CLIENT_TYPE_CUSTOM_HEADER: str = config("CLIENT_TYPE_CUSTOM_HEADER", default="")
+
+# Default execution time for the Workspace Costs updater scheduled job
+WORKSPACE_COSTS_EXECUTION_TIME: str = config("WORKSPACE_COSTS_EXECUTION_TIME", default="01:00")

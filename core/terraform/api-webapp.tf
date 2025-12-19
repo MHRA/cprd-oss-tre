@@ -60,6 +60,7 @@ resource "azurerm_linux_web_app" "api" {
     "CORE_ADDRESS_SPACE"                             = var.core_address_space
     "TRE_ADDRESS_SPACE"                              = var.tre_address_space
     "CLIENT_TYPE_CUSTOM_HEADER"                      = "@Microsoft.KeyVault(SecretUri=${azurerm_key_vault_secret.client_type_custom_header.id})"
+    "WORKSPACE_COSTS_EXECUTION_TIME"                 = "01:00"
   }
 
   identity {

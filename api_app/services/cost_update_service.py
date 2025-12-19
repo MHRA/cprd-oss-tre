@@ -1,5 +1,6 @@
 
-from datetime import datetime
+from datetime import datetime, timedelta
+import asyncio
 import logging
 from uuid import uuid4
 from services.cost_service import CostService, cost_service_factory
@@ -13,7 +14,6 @@ from resources import constants
 from azure.data.tables import TableServiceClient, UpdateMode
 
 def to_iso8601(dt, end_of_day=False):
-
     if dt is None:
         return None
     if end_of_day:
@@ -30,8 +30,9 @@ async def update_workspace_costs(
     workspace_services_repo = await WorkspaceServiceRepository.create(db_client)
 
     granularity = GranularityEnum.daily
-    to_date = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
-    from_date = to_date.replace(day=1, hour=0, minute=0, second=0)
+    yesterday = datetime.utcnow() - timedelta(days=1)
+    from_date = yesterday.replace(hour=0, minute=0, second=0, microsecond=0)
+    to_date = yesterday.replace(hour=23, minute=59, second=59, microsecond=0)
 
     account_name = constants.STORAGE_ACCOUNT_NAME_CORE_RESOURCE_GROUP.format(config.TRE_ID)
     account_endpoint = f"https://{account_name}.table.core.windows.net"
@@ -46,6 +47,7 @@ async def update_workspace_costs(
     table_client = client.get_table_client(table_name="workspacecosts")
 
     for workspace in workspaces:
+        logging.info(f"Updating workspace costs for workspace {workspace.id}")
         report: WorkspaceCostReport = await cost_service.query_tre_workspace_costs(
             workspace_id=workspace.id,
             granularity=granularity,
@@ -75,5 +77,9 @@ async def update_workspace_costs(
 
         try:
             table_client.upsert_entity(entity=new_entity, mode=UpdateMode.MERGE)
+            logging.info(f"Workspace costs for workspace {workspace.id} added successfully")
         except Exception as e:
-            logging.error(f"Failed to upsert entity for workspace {workspace.id}: {e}")
+            logging.error(f"Failed to update workspace costs for workspace {workspace.id}: {e}")
+
+        # This wait time is here to avoid problems with rate limit.
+        await asyncio.sleep(20)

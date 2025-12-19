@@ -93,13 +93,27 @@ async def update_airlock_request_status() -> None:
 
 
 def start_cost_update_scheduler():
+    try:
+        # Read execution time from Environment Variables
+        update_execution_time = config.WORKSPACE_COSTS_EXECUTION_TIME
+    except Exception as e:
+        update_execution_time = "01:00"
+        logging.error(f"Unable to read execution time from environment variables - setting default value \"01:00\"")
+
+    update_execution_time_list = update_execution_time.split(":")
+    update_execution_time_hour = update_execution_time_list[0]
+    update_execution_time_minutes = update_execution_time_list[1]
+
+    # Log messages to be sure that the scheduled job is running.
+    logging.info(f"Setting Workspace Costs Updater - Execution time: {update_execution_time_hour}:{update_execution_time_minutes}")
+
     scheduler = BackgroundScheduler()
     loop = asyncio.get_event_loop()
     scheduler.add_job(
         lambda: asyncio.run_coroutine_threadsafe(update_workspace_costs(app), loop),
         'cron',
-        hour=1,
-        minute=0
+        hour=update_execution_time_hour,
+        minute=update_execution_time_minutes
     )
     scheduler.start()
 

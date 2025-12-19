@@ -89,10 +89,21 @@ resource "azurerm_storage_table" "workspacecreditusage" {
   storage_account_name = azurerm_storage_account.stg.name
 }
 
-
-resource "azurerm_role_assignment" "workspace_costs_table_reader" {
+resource "azurerm_role_assignment" "workspace_costs_table_data_reader" {
   scope                = azurerm_storage_account.stg.id
   role_definition_name = "Storage Table Data Reader"
+  principal_id         = azurerm_user_assigned_identity.id.principal_id
+}
+
+resource "azurerm_role_assignment" "workspace_costs_blob_data_contributor" {
+  scope                = azurerm_storage_account.stg.id
+  role_definition_name = "Storage Blob Data Contributor"
+  principal_id         = azurerm_user_assigned_identity.id.principal_id
+}
+
+resource "azurerm_role_assignment" "workspace_costs_table_data_contributor" {
+  scope                = azurerm_storage_account.stg.id
+  role_definition_name = "Storage Table Data Contributor"
   principal_id         = azurerm_user_assigned_identity.id.principal_id
 }
 
