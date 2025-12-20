@@ -84,8 +84,8 @@ resource "azurerm_storage_table" "workspacecosts" {
   storage_account_name = azurerm_storage_account.stg.name
 }
 
-resource "azurerm_storage_table" "workspacecreditusage" {
-  name                 = "workspacecreditusage"
+resource "azurerm_storage_table" "workspaceazurecosts" {
+  name                 = "workspaceazurecosts"
   storage_account_name = azurerm_storage_account.stg.name
 }
 
