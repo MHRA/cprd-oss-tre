@@ -44,7 +44,7 @@ async def update_workspace_costs(
     )
 
     workspaces = await workspace_repo.get_active_workspaces()
-    table_client = client.get_table_client(table_name="workspacecosts")
+    table_client = client.get_table_client(table_name=constants.WORKSPACE_COSTS_TABLE_NAME)
 
     for workspace in workspaces:
         logging.info(f"Updating workspace costs for workspace {workspace.id}")
