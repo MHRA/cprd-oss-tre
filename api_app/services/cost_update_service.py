@@ -69,8 +69,10 @@ async def update_workspace_costs(
             "PartitionKey": "None",
             "RowKey": str(uuid4()),
             "Timestamp": datetime.utcnow().isoformat() + 'Z',
-            "FromDate": to_iso8601(from_date),
-            "ToDate": to_iso8601(to_date, end_of_day=True),
+            # "FromDate": to_iso8601(from_date),
+            # "ToDate": to_iso8601(to_date, end_of_day=True),
+            "FromDate": from_date,
+            "ToDate": to_date,
             "WorkspaceCosts": report_json,
             "WorkspaceId": workspace.id
         }
