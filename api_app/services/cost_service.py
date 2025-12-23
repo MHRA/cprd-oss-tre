@@ -407,6 +407,9 @@ class CostService:
         account_endpoint = f"https://{account_name}.table.core.windows.net"
         workspace_costs_table = constants.WORKSPACE_COSTS_TABLE_NAME
 
+        # Reading workspace costs
+        logging.info(f"Reading workspace costs from table \"{workspace_costs_table}\".")
+
         try:
             costs_items = []
             # For performing this operation, the identity used for running the API must have the role
