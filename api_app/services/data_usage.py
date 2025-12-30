@@ -63,41 +63,62 @@ class DataUsageService:
             container_usage_items = []
             fileshare_usage_items = []
 
+            # We set the filter used to find the latest entry.
+            # Only the latest entries will be selected.
+            parameters = {"latest": True}
+            latest_entity_filter = "Latest eq @latest"
+
             # For performing this operation, the identity used for running the API must have the role
             # "Storage Table Data Reader" (the scope is the storage account holding the table).
             table_client = self.client.get_table_client(table_name=container_usage_table)
-            entities = table_client.list_entities()
+
+            # Filter table entities using workspace name and storage account name.
+            latest_entities = table_client.query_entities(
+                query_filter=latest_entity_filter,
+                parameters=parameters
+            )
+
+            entities = list(latest_entities)
+            # entities = table_client.list_entities()
 
             for entity in entities:
                 container_usage_items.append(
                     MHRAContainerUsageItem(
                         workspace_name=entity['WorkspaceName'],
+                        workspace_id=entity['WorkspaceId'],
                         storage_name=entity['StorageName'],
                         storage_usage=entity['StorageUsage'],
                         storage_limits=entity['StorageLimits'],
                         storage_remaining=entity['StorageLimits']-entity['StorageUsage'],
-                        storage_limits_update_time=entity['StorageLimitsUpdateTime'],
-                        storage_percentage_used=entity['StoragePercentage'],
-                        update_time=entity['UpdateTime']
+                        storage_percentage=entity['StoragePercentage'],
+                        timestamp=entity.metadata['timestamp']
                     )
                 )
 
             # For performing this operation, the identity used for running the API must have the role
             # "Storage Table Data Reader" (the scope is the storage account holding the table).
             table_client = self.client.get_table_client(table_name=fileshare_usage_table)
-            entities = table_client.list_entities()
+
+            # Filter table entities using workspace name and storage account name.
+            latest_entities = table_client.query_entities(
+                query_filter=latest_entity_filter,
+                parameters=parameters
+            )
+
+            entities = list(latest_entities)
+            # entities = table_client.list_entities()
 
             for entity in entities:
                 fileshare_usage_items.append(
                     MHRAFileshareUsageItem(
                         workspace_name=entity['WorkspaceName'],
+                        workspace_id=entity['WorkspaceId'],
                         storage_name=entity['StorageName'],
                         fileshare_usage=entity['FileshareUsage'],
                         fileshare_limits=entity['FileshareLimits'],
                         fileshare_remaining=entity['FileshareLimits']-entity['FileshareUsage'],
-                        fileshare_limits_update_time=entity['FileshareLimitsUpdateTime'],
-                        fileshare_percentage_used=entity['FilesharePercentage'],
-                        update_time=entity['UpdateTime']
+                        fileshare_percentage=entity['FilesharePercentage'],
+                        timestamp=entity.metadata['timestamp']
                     )
                 )
 
@@ -116,18 +137,31 @@ class DataUsageService:
         try:
             storage_account_limits_items = []
 
+            # We set the filter used to find the latest entry.
+            # Only the latest entries will be selected.
+            parameters = {"latest": True}
+            latest_entity_filter = "Latest eq @latest"
+
             # For performing this operation, the identity used for running the API must have the role
             # "Storage Table Data Reader" (the scope is the storage account holding the table).
             table_client = self.client.get_table_client(table_name=container_usage_table)
-            entities = table_client.list_entities()
+
+            # Filter table entities using workspace name and storage account name.
+            latest_entities = table_client.query_entities(
+                query_filter=latest_entity_filter,
+                parameters=parameters
+            )
+
+            entities = list(latest_entities)
+            # entities = table_client.list_entities()
 
             for entity in entities:
                 storage_account_limits_items.append(
                     MHRAStorageAccountLimitsItem(
                         workspace_name=entity['WorkspaceName'],
+                        workspace_id=entity['WorkspaceId'],
                         storage_name=entity['StorageName'],
                         storage_limits=entity['StorageLimits'],
-                        storage_limits_update_time=entity['StorageLimitsUpdateTime']
                     )
                 )
 
@@ -146,7 +180,7 @@ class DataUsageService:
 
         try:
             # Creating filter for selecting the correct storage account
-            workspace_name = storage_account_lits_properties.workspace_name
+            workspace_id = storage_account_lits_properties.workspace_id
             storage_name = storage_account_lits_properties.storage_name
             storage_limits = storage_account_lits_properties.storage_limits
 
@@ -158,8 +192,8 @@ class DataUsageService:
             # "Storage Table Data Reader" (the scope is the storage account holding the table).
             table_client = self.client.get_table_client(table_name=container_usage_table)
 
-            parameters = {"workspacename": workspace_name, "storagename": storage_name}
-            workspace_filter = "WorkspaceName eq @workspacename and StorageName eq @storagename"
+            parameters = {"workspaceid": workspace_id, "storagename": storage_name, "latest": True}
+            workspace_filter = "WorkspaceId eq @workspaceid and StorageName eq @storagename and Latest eq @latest"
 
             # Filter table entities using workspace name and storage account name.
             entities = table_client.query_entities(
@@ -179,24 +213,23 @@ class DataUsageService:
                     "PartitionKey": entity['PartitionKey'],
                     "RowKey": entity['RowKey'],
                     "WorkspaceName": entity['WorkspaceName'],
+                    "WorkspaceId": entity['WorkspaceId'],
                     "StorageName": entity['StorageName'],
                     "StorageUsage": entity['StorageUsage'],
                     "StorageLimits": storage_limits,
-                    "StorageLimitsUpdateTime": storage_limits_update_time,
                     "StoragePercentage": math.floor(((entity['StorageUsage'] * 100.0) / storage_limits)),
-                    "UpdateTime": entity['UpdateTime']
+                    "Latest": entity['Latest']
                 }
 
-                logging.info(f"Updating data limits for storage account {entity['StorageName']} - New limit: {storage_limits} - Timestamp: {storage_limits_update_time}")
+                logging.info(f"Updating data limits for storage account {entity['StorageName']} - New limit: {storage_limits}")
 
                 # Merge the entity
                 table_client.update_entity(mode=UpdateMode.MERGE, entity=new_entity)
 
             storage_account_limit_item = MHRAStorageAccountLimitsItem(
-                workspace_name=workspace_name,
+                workspace_id=workspace_id,
                 storage_name=storage_name,
-                storage_limits=storage_limits,
-                storage_limits_update_time=storage_limits_update_time
+                storage_limits=storage_limits
             )
 
             return storage_account_limit_item
@@ -213,7 +246,6 @@ class DataUsageService:
             container_usage_items = []
             fileshare_usage_items = []
 
-
             query_filter = " and ".join([f"WorkspaceName eq '{workspaceId}'" for workspaceId in storage_info_request.workspaceIds])
 
             # For performing this operation, the identity used for running the API must have the role
@@ -225,13 +257,13 @@ class DataUsageService:
                 container_usage_items.append(
                     MHRAContainerUsageItem(
                         workspace_name=entity['WorkspaceName'],
+                        workspace_id=entity['WorkspaceId'],
                         storage_name=entity['StorageName'],
                         storage_usage=entity['StorageUsage'],
                         storage_limits=entity['StorageLimits'],
                         storage_remaining=entity['StorageLimits']-entity['StorageUsage'],
-                        storage_limits_update_time=entity['StorageLimitsUpdateTime'],
-                        storage_percentage_used = math.floor(entity['StoragePercentage']),
-                        update_time=entity['UpdateTime']
+                        storage_percentage = math.floor(entity['StoragePercentage']),
+                        timestamp = entity['Timestamp']
                     )
                 )
             if storage_info_request.workspaceType in ["eMSL", "", None]:
@@ -313,7 +345,8 @@ class DataUsageService:
         workspace = constants.WORKSPACE_RESOURCE_GROUP_NAME.format(tre_id, workspaceId[-4:])
         logging.info(f"Derived workspace name: {workspace}")
         try:
-            query_filter = f"WorkspaceName eq '{workspace}'"
+            # query_filter = f"WorkspaceName eq '{workspace}'"
+            query_filter = f"WorkspaceName eq '{workspace}' and Latest eq true"
 
             # Container usage
             table_client = self.client.get_table_client(table_name=container_usage_table)
@@ -327,15 +360,15 @@ class DataUsageService:
                 logging.info(f"Latest container usage entity: {latest}")
                 container_usage_item = MHRAContainerUsageItem(
                     workspace_name=latest.get('WorkspaceName', ''),
+                    workspace_id=latest.get('WorkspaceId', ''),
                     storage_name=latest.get('StorageName', ''),
                     storage_usage=self._format_size(latest.get('StorageUsage')),
                     storage_limits=self._format_size(latest.get('StorageLimits')),
                     storage_remaining=self._format_size(
                         (latest.get('StorageLimits', 0) - latest.get('StorageUsage', 0))
                     ),
-                    storage_limits_update_time=latest.get('StorageLimitsUpdateTime', ''),
-                    storage_percentage_used=math.floor(latest.get('StoragePercentage', 0)),
-                    update_time=latest.get('UpdateTime', '')
+                    storage_percentage=math.floor(latest.get('StoragePercentage', 0)),
+                    timestamp=latest.metadata['timestamp']
                 )
 
             # Fileshare usage
@@ -349,15 +382,15 @@ class DataUsageService:
                 logging.info(f"Formatting fileshare usage item for latest entity: {latest}")
                 fileshare_usage_item = MHRAFileshareUsageItem(
                     workspace_name = latest.get('WorkspaceName', ''),
+                    workspace_id=latest.get('WorkspaceId', ''),
                     storage_name = latest.get('StorageName', ''),
                     fileshare_usage = self._format_size(latest.get('FileshareUsage')),
                     fileshare_limits = self._format_size(latest.get('FileshareLimits')),
                     fileshare_remaining = self._format_size(
                         (latest.get('FileshareLimits', 0) - latest.get('FileshareUsage', 0))
                     ),
-                    fileshare_limits_update_time = latest.get('FileshareLimitsUpdateTime', ''),
-                    fileshare_percentage_used = math.floor(latest.get('FilesharePercentage', 0)),
-                    update_time = latest.get('UpdateTime', '')
+                    fileshare_percentage = math.floor(latest.get('FilesharePercentage', 0)),
+                    timestamp=latest.metadata['timestamp']
                 )
 
             return WorkspaceDataUsage(
