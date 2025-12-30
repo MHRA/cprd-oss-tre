@@ -5,6 +5,7 @@ locals {
     "AZFWApplicationRule",
     "AZFWNetworkRule",
     "AZFWDnsProxy",
+    "AZFWNatRule",
   ]
   tre_shared_service_tags = {
     tre_id                = var.tre_id
