@@ -175,7 +175,7 @@ class DataUsageService:
             raise Exception("Unknown error when calling table_client.")
 
     async def set_storage_account_limits(self, storage_account_lits_properties: StorageAccountLimitsInput) -> MHRAStorageAccountLimitsItem:
-        storage_limits_update_time = datetime.datetime.utcnow().replace(tzinfo=datetime.timezone.utc).isoformat()
+        # storage_limits_update_time = datetime.datetime.utcnow().replace(tzinfo=datetime.timezone.utc).isoformat()
         container_usage_table = constants.WORKSPACE_CONTAINER_USAGE_TABLE_NAME
 
         try:
@@ -263,7 +263,8 @@ class DataUsageService:
                         storage_limits=entity['StorageLimits'],
                         storage_remaining=entity['StorageLimits']-entity['StorageUsage'],
                         storage_percentage = math.floor(entity['StoragePercentage']),
-                        timestamp = entity['Timestamp']
+                        # timestamp = entity['Timestamp']
+                        timestamp = entity.metadata['timestamp']
                     )
                 )
             if storage_info_request.workspaceType in ["eMSL", "", None]:
