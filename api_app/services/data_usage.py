@@ -414,15 +414,21 @@ class DataUsageService:
             account_url=self.get_account_url(account_name),
             credential=credentials.get_credential()
         )
-        container_name = container_create_request.protocolId
+        template = workspace.templateName
+        if template.endswith("a-msl"):
+            container_name = f"a-{container_create_request.protocolId}"
+        else:
+            container_name = f"e-{container_create_request.protocolId}"
+
         try:
             container_client =  blob_service_client.create_container(container_name)
         except Exception as e:
             raise Exception(f"Error occurred while creating container: {e}")
 
-        template = workspace.templateName
-        folder_names = ['Type1/', 'Type2/']
-        folderName = "ReceiveFromExplore" if template.endswith("a-msl") else "SendToAnalyse"
+
+        prefix = "A-" if template.endswith("a-msl") else "E-"
+        folder_names = [f"{prefix}Type1/", f"{prefix}Type2/"]
+        folderName = f"{prefix}ReceiveFromExplore" if template.endswith("a-msl") else f"{prefix}SendToAnalyse"
         folder_names.append(folderName + '/')
 
         for folder_name in folder_names:
@@ -434,6 +440,8 @@ class DataUsageService:
 
         return {"container": container_name, "folders": folder_names}
 
+    def get_account_url(self, account_name: str) -> str:
+        return f"https://{account_name}.blob.core.windows.net/"
 
     def _format_size(self, size_gb):
 
