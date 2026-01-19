@@ -1,4 +1,5 @@
-import datetime, logging, math
+from datetime import datetime, timezone
+import logging, math
 import uuid
 
 import httpx
@@ -283,7 +284,8 @@ class DataUsageService:
                             fileshare_remaining=entity['FileshareLimits']-entity['FileshareUsage'],
                             fileshare_limits_update_time=entity['FileshareLimitsUpdateTime'],
                             fileshare_percentage_used=entity['FilesharePercentage'],
-                            update_time=entity['UpdateTime']
+                            update_time=entity.metadata['timestamp']
+
                         )
                     )
 
@@ -301,31 +303,25 @@ class DataUsageService:
 
         try:
             protocol_items = []
-            latest_by_workspace = {}
-            query_filter = f"WorkspaceName eq '{workspaceId}'"
+            query_filter = f"WorkspaceName eq '{workspaceId}' and Latest eq true"
             table_client = self.client.get_table_client(table_name=container_perstudy_table)
             entities = list(table_client.query_entities(query_filter))
-            for entity in entities:
-                wsid = entity.get("WorkspaceId")
-                pid = entity.get("ProtocolId")
-                wsid = wsid + pid
-                ts = entity.get("Timestamp")
-                current_best = latest_by_workspace.get(wsid)
-                if current_best is None:
-                    latest_by_workspace[wsid] = entity
-                else:
-                    cur_ts = current_best.get("Timestamp")
-                    if cur_ts is None or (ts is not None and ts > cur_ts):
-                        latest_by_workspace[wsid] = entity
 
-            for wsid, e in latest_by_workspace.items():
+            for entity in entities:
                 protocol_items.append(
                     MHRAProtocolItem(
-                        workspace_name=e.get('WorkspaceName', ''),
-                        storage_name=e.get('StorageName', ''),
-                        protocol_id=e.get('ProtocolId', ''),
-                        protocol_data_usage=self._format_size(e.get('ProtocolDataUsage', 0)),
-                        protocol_percentage_used=math.floor(e.get('ProtocolPercentageUsed', 0))
+                        workspace_name=entity.get('WorkspaceName', ''),
+                        workspace_id=entity.get('WorkspaceId', ''),
+                        storage_name=entity.get('StorageName', ''),
+                        storage_limits=self._format_size(entity.get('StorageLimits', 0)),
+                        protocol_id=entity.get('ProtocolId', ''),
+                        protocol_data_usage=self._format_size(entity.get('ProtocolDataUsage', 0)),
+                        protocol_data_remaining=self._format_size(
+
+                            (entity.get('StorageLimits', 0) - entity.get('ProtocolDataUsage', 0))
+                        ),
+                        protocol_percentage_usage=math.floor(entity.get('ProtocolPercentageUsage',0)),
+                        timestamp=entity.metadata['timestamp']
                     )
                 )
 
@@ -406,6 +402,45 @@ class DataUsageService:
             logging.exception("Unknown error when calling table_client.")
             raise
 
+    async def set_perstudy_items(self, workspaceId: str, protocolId: str) :
+        container_perstudy_table = constants.WORKSPACE_PERSTUDY_USAGE_TABLE_NAME
+
+        try:
+            tre_id = config.TRE_ID
+            workspace = constants.WORKSPACE_RESOURCE_GROUP_NAME.format(tre_id, workspaceId[-4:])
+            table_client = self.client.get_table_client(table_name=container_perstudy_table)
+            key_vault_name = constants.WS_KEYVAULT_NAME.format(tre_id,workspaceId[-4:])
+            storageLimit = await self._fetch_key_valut("ssbs-storage-limits",key_vault_name)
+
+            new_entity = {
+                   "PartitionKey": "None",
+                    "RowKey": str(uuid.uuid4()),
+                    "Timestamp": datetime.now(timezone.utc).isoformat(),
+                    "ProtocolDataUsage": 0.0,
+                    "ProtocolId": protocolId,
+                    "ProtocolPercentageUsage": 0.0,
+                    'StorageLimits': float(storageLimit),
+                    "StorageName": constants.STORAGE_ACCOUNT_NAME_WORKSPACE_RESOURCE_GROUP.format(workspaceId[-4:]),
+                    "WorkspaceName": workspace,
+                    "WorkspaceId": workspaceId,
+                    "Latest": True
+                }
+            table_client.upsert_entity(mode=UpdateMode.MERGE, entity=new_entity)
+
+        except HttpResponseError as e:
+            logging.exception(
+                "Table storage error for workspaceId=%s, protocolId=%s",
+                workspaceId,
+                protocolId,
+            )
+            raise
+        except Exception as e:
+            logging.exception(
+                "Unexpected error in set_perstudy_items for workspaceId=%s",
+                workspaceId,
+            )
+            raise
+
     async def create_container(self, container_create_request: ContainerCreateRequest, workspace_repo: WorkspaceRepository):
         workspace = await workspace_repo.get_workspace_by_id(container_create_request.workspaceId)
         account_name = constants.STORAGE_ACCOUNT_NAME_WORKSPACE_RESOURCE_GROUP.format(container_create_request.workspaceId[-4:])
@@ -416,9 +451,9 @@ class DataUsageService:
         )
         template = workspace.templateName
         if template.endswith("a-msl"):
-            container_name = f"a-{container_create_request.protocolId}"
+            container_name = f"{container_create_request.protocolId}-a"
         else:
-            container_name = f"e-{container_create_request.protocolId}"
+            container_name = f"{container_create_request.protocolId}-e"
 
         try:
             container_client =  blob_service_client.create_container(container_name)
@@ -426,18 +461,18 @@ class DataUsageService:
             raise Exception(f"Error occurred while creating container: {e}")
 
 
-        prefix = "A-" if template.endswith("a-msl") else "E-"
-        folder_names = [f"{prefix}Type1/", f"{prefix}Type2/"]
-        folderName = f"{prefix}ReceiveFromExplore" if template.endswith("a-msl") else f"{prefix}SendToAnalyse"
+        prefix = "-a" if template.endswith("a-msl") else "-e"
+        folder_names = [f"Type1{prefix}/", f"Type2{prefix}/"]
+        folderName = f"ReceiveFromExplore{prefix}" if template.endswith("a-msl") else f"SendToAnalyse{prefix}"
         folder_names.append(folderName + '/')
 
         for folder_name in folder_names:
             try:
-                blob_name = f"{folder_name}/.emptyFile"
+                blob_name = f"{folder_name}/"
                 container_client.upload_blob(blob_name, b'', overwrite=True)
             except Exception as e:
                 raise Exception(f"Error occurred while creating blob folder '{folder_name}': {e}")
-
+        await self.set_perstudy_items(container_create_request.workspaceId, container_name)
         return {"container": container_name, "folders": folder_names}
 
     def get_account_url(self, account_name: str) -> str:
@@ -456,8 +491,9 @@ class DataUsageService:
     async def create_group(self, group_request: EntraGroupRequest)->EntraGroup:
 
         tenant_id = config.AAD_TENANT_ID
-        client_id = await self._fetch_key_valut("ssbs-management-app-registration-client-id")
-        client_secret = await self._fetch_key_valut("ssbs-management-app-registration-client-secret")
+        key_vault_name = constants.CORE_KEYVAULT_NAME.format(config.TRE_ID)
+        client_id = await self._fetch_key_valut("ssbs-management-app-registration-client-id",key_vault_name)
+        client_secret = await self._fetch_key_valut("ssbs-management-app-registration-client-secret",key_vault_name)
 
         credential = ClientSecretCredential(
             tenant_id = tenant_id,
@@ -493,8 +529,7 @@ class DataUsageService:
         except httpx.ConnectError as e:
             raise Exception(f"Error creating group: {e}")
 
-    async def _fetch_key_valut(self, secret_name) -> str:
-        key_vault_name = constants.CORE_KEYVAULT_NAME.format(config.TRE_ID)
+    async def _fetch_key_valut(self, secret_name:str, key_vault_name:str) -> str:
         key_vault_url = f"https://{key_vault_name}.vault.azure.net/"
         credential = credentials.get_credential()
         client = SecretClient(vault_url=key_vault_url, credential=credential)

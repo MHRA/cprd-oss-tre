@@ -30,5 +30,6 @@ WORKSPACE_FILESHARE_USAGE_TABLE_NAME = "fileshareusage"
 WORKSPACE_PERSTUDY_USAGE_TABLE_NAME  = "perstudyusage"
 
 CORE_KEYVAULT_NAME = "kv-{}"
+WS_KEYVAULT_NAME = "kv-{}-ws-{}"
 CORE_VNET_NAME = "vnet-{}"
 

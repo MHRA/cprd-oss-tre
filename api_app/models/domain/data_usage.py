@@ -57,11 +57,11 @@ class MHRAProtocolItem(BaseModel):
     workspace_name: Optional[str] = None
     workspace_id: Optional[str] = None
     storage_name: Optional[str] = None
-    storage_limits: Optional[float] = None
+    storage_limits: Optional[str] = None
     protocol_id: Optional[str] = None
-    protocol_data_usage: Optional[float] = None
-    protocol_data_remaining: Optional[float] = None
-    protocol_percentage_usage: Optional[float] = None
+    protocol_data_usage: Optional[str] = None
+    protocol_data_remaining: Optional[str] = None
+    protocol_percentage_usage: Optional[str] = None
 
 class MHRAProtocolList(BaseModel):
     protocol_items: List[MHRAProtocolItem]
