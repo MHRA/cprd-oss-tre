@@ -50,4 +50,15 @@ locals {
   arm_client_id     = "arm-client-id"
   arm_client_secret = "arm-client-secret"
   data_environment  = length(local.matches) > 0 ? local.matches[0] : "?"
+  storage_env_rules = [
+    { match = "cprdprod", val = "strgtremgmtprod" },
+    { match = "cprdstaging", val = "strgtremgmtprod" },
+    { match = "cprdtest", val = "strgtremgmt" },
+    { match = "cprddev", val = "strgtremgmt" }
+  ]
+  storage_matches = [
+    for r in local.storage_env_rules :
+    r.val if(r.match == var.tre_id) || endswith(var.tre_id, r.match)
+  ]
+  storage_environment = length(local.storage_matches) > 0 ? local.storage_matches[0] : "?"
 }

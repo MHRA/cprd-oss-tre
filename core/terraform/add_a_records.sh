@@ -22,3 +22,12 @@ PRIVATE_IP_SYNAPSE_SQL_ONDEMAND=$(az network nic show --ids "$NIC_ID_PE_SYNAPSE_
 
 # Add DNS Record for Synapse Ondemand SQL Private Endpoint
 az network private-dns record-set a add-record --ipv4-address "$PRIVATE_IP_SYNAPSE_SQL_ONDEMAND" --record-set-name "$SYNAPSE_SQL_ONDEMAND_RECORD_SET_NAME" --resource-group "$CORE_RESOURCE_GROUP" --zone-name "$SYNAPSE_ZONE_NAME"
+
+####################################################################################################################################################################################################################################################################
+
+# Find IP of Storage Account VM Template Private Endpoint - privateIPAddress needs to be with a lowercase IP because of the newer version of az-cli
+NIC_ID_PE_STORAGE_ACCOUNT_VM_TEMPLATE=$(az network private-endpoint show --name "$PE_STORAGE_ACCOUNT_VM_TEMPLATE" --resource-group "$STORAGE_ACCOUNT_VM_TEMPLATE_RG" --query "networkInterfaces[0].id" -o tsv)
+PRIVATE_IP_STORAGE_ACCOUNT_VM_TEMPLATE=$(az network nic show --ids "$NIC_ID_PE_STORAGE_ACCOUNT_VM_TEMPLATE" --query "ipConfigurations[0].privateIpAddress" -o tsv)
+
+# Add DNS Record for Storage Account VM Template Private Endpoint
+az network private-dns record-set a add-record --ipv4-address "$PRIVATE_IP_STORAGE_ACCOUNT_VM_TEMPLATE" --record-set-name "$STORAGE_ACCOUNT_VM_TEMPLATE_RECORD_SET_NAME" --resource-group "$CORE_RESOURCE_GROUP" --zone-name "privatelink.blob.core.windows.net"

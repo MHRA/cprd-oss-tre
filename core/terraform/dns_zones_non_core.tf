@@ -59,19 +59,22 @@ resource "null_resource" "add_a_dns_records" {
     command = "${path.root}/add_a_records.sh"
     #on_failure = continue
     environment = {
-      TENANT_ID                            = data.azurerm_client_config.current.tenant_id
-      ARM_CLIENT_ID                        = data.azurerm_key_vault_secret.arm_client_id.value
-      ARM_CLIENT_SECRET                    = data.azurerm_key_vault_secret.arm_client_secret.value
-      DATA_SHARED_RG                       = "rg-${var.tre_id}-data-shared"
-      SQL_VM_NAME                          = "c${local.data_environment}wsafedb01"
-      SQL_RECORD_SET_NAME                  = "c${local.data_environment}wsafedb01"
-      CORE_RESOURCE_GROUP                  = local.core_resource_group_name
-      SQL_ZONE_NAME                        = azurerm_private_dns_zone.non_core["privatelink.database.windows.net"].name
-      PE_SYNAPSE_SQL                       = "pe-c${local.data_environment}synshared-sql"
-      PE_SYNAPSE_SQL_ONDEMAND              = "pe-c${local.data_environment}synshared-sqlondemand"
-      SYNAPSE_SQL_RECORD_SET_NAME          = "c${local.data_environment}synshared"
-      SYNAPSE_SQL_ONDEMAND_RECORD_SET_NAME = "c${local.data_environment}synshared-ondemand"
-      SYNAPSE_ZONE_NAME                    = azurerm_private_dns_zone.non_core["privatelink.sql.azuresynapse.net"].name
+      TENANT_ID                                   = data.azurerm_client_config.current.tenant_id
+      ARM_CLIENT_ID                               = data.azurerm_key_vault_secret.arm_client_id.value
+      ARM_CLIENT_SECRET                           = data.azurerm_key_vault_secret.arm_client_secret.value
+      DATA_SHARED_RG                              = "rg-${var.tre_id}-data-shared"
+      SQL_VM_NAME                                 = "c${local.data_environment}wsafedb01"
+      SQL_RECORD_SET_NAME                         = "c${local.data_environment}wsafedb01"
+      CORE_RESOURCE_GROUP                         = local.core_resource_group_name
+      SQL_ZONE_NAME                               = azurerm_private_dns_zone.non_core["privatelink.database.windows.net"].name
+      PE_SYNAPSE_SQL                              = "pe-c${local.data_environment}synshared-sql"
+      PE_SYNAPSE_SQL_ONDEMAND                     = "pe-c${local.data_environment}synshared-sqlondemand"
+      SYNAPSE_SQL_RECORD_SET_NAME                 = "c${local.data_environment}synshared"
+      SYNAPSE_SQL_ONDEMAND_RECORD_SET_NAME        = "c${local.data_environment}synshared-ondemand"
+      SYNAPSE_ZONE_NAME                           = azurerm_private_dns_zone.non_core["privatelink.sql.azuresynapse.net"].name
+      PE_STORAGE_ACCOUNT_VM_TEMPLATE              = "pe-${local.storage_environment}"
+      STORAGE_ACCOUNT_VM_TEMPLATE_RG              = "CPRD-RG-000053"
+      STORAGE_ACCOUNT_VM_TEMPLATE_RECORD_SET_NAME = local.storage_environment
     }
   }
 
