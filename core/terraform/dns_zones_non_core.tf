@@ -55,6 +55,11 @@ resource "null_resource" "add_a_dns_records" {
     for r in local.env_rules :
     length(regexall(r.match, var.tre_id)) > 0
   ]) ? 1 : 0
+
+  triggers = {
+    script_hash = filesha256("${path.root}/add_a_records.sh")
+  }
+
   provisioner "local-exec" {
     command = "${path.root}/add_a_records.sh"
     #on_failure = continue
