@@ -189,10 +189,15 @@ resource "azurerm_application_gateway" "agw" {
     include_query_string = true
   }
 
-  # Setting new SSL profile   
+  # Setting new SSL profile
   ssl_policy {
-    policy_type = "Predefined"
-    policy_name = "AppGwSslPolicy20220101"
+    policy_type          = "CustomV2"
+    min_protocol_version = "TLSv1_2"
+
+    cipher_suites = [
+      "TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256",
+      "TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384"
+    ]
   }
 
   # We don't want Terraform to revert certificate cycle changes. We assume the certificate will be renewed in keyvault.
