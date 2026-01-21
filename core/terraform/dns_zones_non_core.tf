@@ -57,11 +57,11 @@ resource "null_resource" "add_a_dns_records" {
   ]) ? 1 : 0
 
   triggers = {
-    script_hash = filesha256("${path.root}/add_a_records.sh")
+    script_hash = filesha256("${path.root}/check_and_add_a_records.sh")
   }
 
   provisioner "local-exec" {
-    command = "${path.root}/add_a_records.sh"
+    command = "${path.root}/check_and_add_a_records.sh"
     #on_failure = continue
     environment = {
       TENANT_ID                                   = data.azurerm_client_config.current.tenant_id

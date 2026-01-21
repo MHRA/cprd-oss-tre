@@ -41,7 +41,7 @@ locals {
     { match = "cprdprod", val = "p" },
     { match = "cprdstaging", val = "s" },
     { match = "cprdtest", val = "t" },
-    { match = "cprddev", val = "d" },
+    { match = "cprddev", val = "d" }
   ]
   matches = [
     for r in local.env_rules :
