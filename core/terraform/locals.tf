@@ -37,6 +37,9 @@ locals {
   storage_table_scope      = "/subscriptions/${data.azurerm_subscription.current.subscription_id}/resourceGroups/rg-${var.tre_id}/providers/Microsoft.Storage/storageAccounts/stg${var.tre_id}/tableServices/default/tables"
   core_keyvault_name       = "kv-${var.tre_id}"
   core_resource_group_name = "rg-${var.tre_id}"
+  arm_client_id            = "arm-client-id"
+  arm_client_secret        = "arm-client-secret"
+
   env_rules = [
     { match = "cprdprod", val = "p" },
     { match = "cprdstaging", val = "s" },
@@ -47,9 +50,8 @@ locals {
     for r in local.env_rules :
     r.val if(r.match == var.tre_id) || endswith(var.tre_id, r.match)
   ]
-  arm_client_id     = "arm-client-id"
-  arm_client_secret = "arm-client-secret"
-  data_environment  = length(local.matches) > 0 ? local.matches[0] : "?"
+  data_environment = length(local.matches) > 0 ? local.matches[0] : "?"
+
   storage_env_rules = [
     { match = "cprdprod", val = "strgtremgmtprod" },
     { match = "cprdstaging", val = "strgtremgmtprod" },
@@ -61,4 +63,16 @@ locals {
     r.val if(r.match == var.tre_id) || endswith(var.tre_id, r.match)
   ]
   storage_environment = length(local.storage_matches) > 0 ? local.storage_matches[0] : "?"
+
+  pe_storage_env_rules = [
+    { match = "cprdprod", val = "pe-strgtremgmtprod-prod" },
+    { match = "cprdstaging", val = "pe-strgtremgmtprod-staging" },
+    { match = "cprdtest", val = "pe-strgtremgmt-test" },
+    { match = "cprddev", val = "pe-strgtremgmt-dev" }
+  ]
+  pe_storage_matches = [
+    for r in local.pe_storage_env_rules :
+    r.val if(r.match == var.tre_id) || endswith(var.tre_id, r.match)
+  ]
+  pe_storage_environment = length(local.pe_storage_matches) > 0 ? local.pe_storage_matches[0] : "?"
 }

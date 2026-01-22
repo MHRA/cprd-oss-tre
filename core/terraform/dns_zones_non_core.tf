@@ -77,7 +77,7 @@ resource "null_resource" "add_a_dns_records" {
       SYNAPSE_SQL_RECORD_SET_NAME                 = "c${local.data_environment}synshared"
       SYNAPSE_SQL_ONDEMAND_RECORD_SET_NAME        = "c${local.data_environment}synshared-ondemand"
       SYNAPSE_ZONE_NAME                           = azurerm_private_dns_zone.non_core["privatelink.sql.azuresynapse.net"].name
-      PE_STORAGE_ACCOUNT_VM_TEMPLATE              = "pe-${local.storage_environment}"
+      PE_STORAGE_ACCOUNT_VM_TEMPLATE              = local.pe_storage_environment
       STORAGE_ACCOUNT_VM_TEMPLATE_RG              = "CPRD-RG-000053"
       STORAGE_ACCOUNT_VM_TEMPLATE_RECORD_SET_NAME = local.storage_environment
     }

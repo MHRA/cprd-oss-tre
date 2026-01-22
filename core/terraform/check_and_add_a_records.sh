@@ -114,9 +114,9 @@ ensure_a_record \
   "$STORAGE_ACCOUNT_VM_TEMPLATE_RECORD_SET_NAME" \
   "$PRIVATE_IP_STORAGE_ACCOUNT_VM_TEMPLATE"
 
-#############################################################################################################
+###############################################################################################################
 # Note:
 # privateIpAddress needs to be with a lowercase p in Ip
 # because of an older version of az-cli in Dockerfile of .devcontainer - AZURE_CLI_VERSION=2.37.0-1~bullseye
 # In the latest version of az-cli IP needs to be uppercase like this privateIPAddress
-#############################################################################################################
+###############################################################################################################
