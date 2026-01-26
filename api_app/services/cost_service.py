@@ -408,7 +408,6 @@ class CostService:
         workspace_costs_table = constants.WORKSPACE_COSTS_TABLE_NAME
 
         # Reading workspace costs
-        logging.info(f"Reading workspace costs from table \"{workspace_costs_table}\".")
 
         try:
             costs_items = []
