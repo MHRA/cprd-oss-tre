@@ -87,8 +87,14 @@ class WorkspaceRepository(ResourceRepository):
         # All storage account names are located in resource/constants.py file.
         storage_client = StorageManagementClient(credential=credentials.get_credential(), subscription_id=config.SUBSCRIPTION_ID)
 
+        max_try = 10
+        current_try = 0
         keep_checking_storage_availability = True
-        while (keep_checking_storage_availability):
+        while (keep_checking_storage_availability and current_try < max_try):
+            # We expect to find an available ID within a few tries, but just in case we add
+            # a maximum tries mechanism to avoid infinit loop. In this case, the deployment will fail.
+            current_try = current_try + 1
+            
             full_workspace_id = str(uuid.uuid4())
             short_workspace_id = full_workspace_id[-4:]
 
@@ -101,7 +107,7 @@ class WorkspaceRepository(ResourceRepository):
 
                 # We restart the while loop.
                 if not keep_checking_storage_availability:
-                    logging.info(f">>>>> Storage account name '{account_name}' is NOT available for creation. A new Workspace ID will be created.")
+                    logging.info(f">>>>> Storage account name '{account_name}' is NOT available for creation. A new Workspace ID will be created. Try {current_try}.")
                     keep_checking_storage_availability = True
                     break
 
@@ -112,7 +118,7 @@ class WorkspaceRepository(ResourceRepository):
             else:
                 keep_checking_storage_availability = False
 
-        logging.info(f">>>>> All storage accounts for Workspace {full_workspace_id} are available. Proceed with deployment.")
+        logging.info(f">>>>> All storage accounts for Workspace {full_workspace_id} are available. Proceed with deployment. Try {current_try}.")
         template = await self.validate_input_against_template(workspace_input.templateName, workspace_input, ResourceType.Workspace, user_roles)
 
         # allow for workspace template taking a single address_space or multiple address_spaces
