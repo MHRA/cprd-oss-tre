@@ -415,7 +415,7 @@ class DataUsageService:
                     "ProtocolId": protocolId,
                     "ProtocolPercentageUsage": 0.0,
                     'StorageLimits': float(storageLimit),
-                    "StorageName": constants.STORAGE_ACCOUNT_NAME_WORKSPACE_RESOURCE_GROUP.format(workspaceId[-4:]),
+                    "StorageName": constants.STORAGE_ACCOUNT_NAME_WORKSPACE_RESOURCE_GROUP_SSBS.format(workspaceId[-4:]),
                     "WorkspaceName": workspace,
                     "WorkspaceId": workspaceId,
                     "Latest": True
@@ -438,7 +438,7 @@ class DataUsageService:
 
     async def create_container(self, container_create_request: ContainerCreateRequest, workspace_repo: WorkspaceRepository):
         workspace = await workspace_repo.get_workspace_by_id(container_create_request.workspaceId)
-        account_name = constants.STORAGE_ACCOUNT_NAME_WORKSPACE_RESOURCE_GROUP.format(container_create_request.workspaceId[-4:])
+        account_name = constants.STORAGE_ACCOUNT_NAME_WORKSPACE_RESOURCE_GROUP_SSBS.format(container_create_request.workspaceId[-4:])
 
         blob_service_client = BlobServiceClient(
             account_url=self.get_account_url(account_name),
@@ -541,7 +541,7 @@ class DataUsageService:
 
     async def _get_storage_account(self, credential, workspaceId):
         subscription_id = config.SUBSCRIPTION_ID
-        storage_account_name = constants.STORAGE_ACCOUNT_NAME_WORKSPACE_RESOURCE_GROUP.format(workspaceId)
+        storage_account_name = constants.STORAGE_ACCOUNT_NAME_WORKSPACE_RESOURCE_GROUP_SSBS.format(workspaceId)
         resource_group_name = constants.WORKSPACE_RESOURCE_GROUP_NAME.format(config.TRE_ID, workspaceId)
         storage_client = StorageManagementClient(credential, subscription_id)
         try:

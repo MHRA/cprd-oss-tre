@@ -1,13 +1,15 @@
-import uuid
+import asyncio, logging, uuid
 from typing import List, Tuple
 
 from azure.cosmos.aio import CosmosClient
+from azure.mgmt.storage import StorageManagementClient
 from pydantic import parse_obj_as
 from db.repositories.resources_history import ResourceHistoryRepository
 from models.domain.resource_template import ResourceTemplate
 from models.domain.authentication import User
 
-from core import config
+from core import config, credentials
+from resources import constants
 from db.errors import EntityDoesNotExist, InvalidInput, ResourceIsNotDeployed
 from db.repositories.resource_templates import ResourceTemplateRepository
 from db.repositories.resources import ResourceRepository, IS_NOT_DELETED_CLAUSE
@@ -71,8 +73,46 @@ class WorkspaceRepository(ResourceRepository):
         return parse_obj_as(Workspace, workspaces[0])
 
     async def create_workspace_item(self, workspace_input: WorkspaceInCreate, auth_info: dict, workspace_owner_object_id: str, user_roles: List[str]) -> Tuple[Workspace, ResourceTemplate]:
-        full_workspace_id = str(uuid.uuid4())
+        storage_account_config_list = [
+            constants.STORAGE_ACCOUNT_NAME_WORKSPACE_RESOURCE_GROUP_GENERAL,
+            constants.STORAGE_ACCOUNT_NAME_WORKSPACE_RESOURCE_GROUP_SSBS,
+            constants.STORAGE_ACCOUNT_NAME_IMPORT_APPROVED,
+            constants.STORAGE_ACCOUNT_NAME_EXPORT_INTERNAL,
+            constants.STORAGE_ACCOUNT_NAME_EXPORT_INPROGRESS,
+            constants.STORAGE_ACCOUNT_NAME_EXPORT_REJECTED,
+            constants.STORAGE_ACCOUNT_NAME_EXPORT_BLOCKED
+        ]
 
+        # To mitigate failed deployments, we check if the Storage Accounts can be created.
+        # All storage account names are located in resource/constants.py file.
+        storage_client = StorageManagementClient(credential=credentials.get_credential(), subscription_id=config.SUBSCRIPTION_ID)
+
+        keep_checking_storage_availability = True
+        while (keep_checking_storage_availability):
+            full_workspace_id = str(uuid.uuid4())
+            short_workspace_id = full_workspace_id[-4:]
+
+            for storage_account_config in storage_account_config_list:
+                account_name = storage_account_config.format(short_workspace_id)
+
+                # Check the name availability
+                availability_check = storage_client.storage_accounts.check_name_availability({"name": account_name, "type": "Microsoft.Storage/storageAccounts"})
+                keep_checking_storage_availability = keep_checking_storage_availability and availability_check.name_available
+
+                # We restart the while loop.
+                if not keep_checking_storage_availability:
+                    logging.info(f">>>>> Storage account name '{account_name}' is NOT available for creation. A new Workspace ID will be created.")
+                    keep_checking_storage_availability = True
+                    break
+
+                # This wait time is here to avoid problems with rate limit.
+                await asyncio.sleep(2)
+            # This instruction is executed if the for loop can iteraty completely over the list
+            # and no break instruction is NOT executed.
+            else:
+                keep_checking_storage_availability = False
+
+        logging.info(f">>>>> All storage accounts for Workspace {full_workspace_id} are available. Proceed with deployment.")
         template = await self.validate_input_against_template(workspace_input.templateName, workspace_input, ResourceType.Workspace, user_roles)
 
         # allow for workspace template taking a single address_space or multiple address_spaces
