@@ -88,7 +88,7 @@ async def update_workspace_costs(app):
     )
 
     table_client = table_service_client.get_table_client(
-        table_name=constants.WORKSPACE_COSTS_TABLE_NAME
+        table_name=constants.WORKSPACE_AZURE_COSTS_TABLE_NAME
     )
 
     workspaces = await workspace_repo.get_active_workspaces()
