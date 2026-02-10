@@ -49,6 +49,15 @@ resource "azurerm_storage_container" "data_usage_enforcement" {
   ]
 }
 
+# Upload Function App's code.
+resource "azurerm_storage_blob" "data_usage_enforcement" {
+  name                   = "func-data-usage-enforcement.zip"
+  storage_account_name   = data.azurerm_storage_account.stg.name
+  storage_container_name = azurerm_storage_container.data_usage_enforcement.name
+  type                   = "Block"
+  source                 = "${path.root}/func-data-usage-enforcement.zip"
+}
+
 # Create Function App resource.
 # The code will be loaded from a ZIP file stored in a blob storage container.
 resource "azurerm_linux_function_app" "data_usage_enforcement" {
@@ -86,7 +95,7 @@ resource "azurerm_linux_function_app" "data_usage_enforcement" {
   # We are running a Python app.
   site_config {
     application_stack {
-      python_version = "3.10"
+      python_version = "3.12"
     }
     application_insights_connection_string = data.azurerm_application_insights.core.connection_string
     application_insights_key               = data.azurerm_application_insights.core.instrumentation_key
@@ -97,11 +106,25 @@ resource "azurerm_linux_function_app" "data_usage_enforcement" {
   virtual_network_subnet_id = var.web_app_subnet_id
 }
 
-# Upload Function App's code.
-resource "azurerm_storage_blob" "data_usage_enforcement" {
-  name                   = "func-data-usage-enforcement.zip"
-  storage_account_name   = data.azurerm_storage_account.stg.name
-  storage_container_name = azurerm_storage_container.data_usage_enforcement.name
-  type                   = "Block"
-  source                 = "${path.root}/func-data-usage-enforcement.zip"
+resource "time_sleep" "wait_before_restart_data_usage_enforcement" {
+  create_duration = "30s"
+
+  depends_on = [
+    azurerm_linux_function_app.data_usage_enforcement
+  ]
+}
+
+# After a deployment, we restart the Function App.
+resource "null_resource" "restart_data_usage_enforcement" {
+  provisioner "local-exec" {
+    command = "az functionapp restart --name ${azurerm_linux_function_app.data_usage_enforcement.name} --resource-group ${var.resource_group_name}"
+  }
+
+  triggers = {
+    timestamp = timestamp()
+  }
+
+  depends_on = [
+    time_sleep.wait_before_restart_data_usage_enforcement
+  ]
 }
