@@ -37,7 +37,7 @@ RUN apt-get update && apt-get install -y ca-certificates curl gnupg lsb-release 
     && curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg \
     && echo "deb [arch=amd64 signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/debian $(lsb_release -cs) stable" \
     | tee /etc/apt/sources.list.d/docker.list > /dev/null \
-    && apt-get update && apt-get install -y docker-ce="5:20.10.21~3-0~debian-bullseye" docker-ce-cli="5:20.10.21~3-0~debian-bullseye" containerd.io="1.6.12-1" --no-install-recommends \
+    && apt-get update && apt-get install -y docker-ce="5:29.1.3-1~debian.11~bullseye" docker-ce-cli="5:29.1.3-1~debian.11~bullseye" docker-buildx-plugin="0.31.1-1~debian.11~bullseye" containerd.io="2.2.1-1~debian.11~bullseye" --no-install-recommends \
     && apt-get clean -y && rm -rf /var/lib/apt/lists/*
 
 # Install Certbot
