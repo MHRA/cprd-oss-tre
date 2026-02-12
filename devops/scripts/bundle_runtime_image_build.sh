@@ -3,7 +3,7 @@ set -o errexit
 set -o pipefail
 set -o nounset
 # Uncomment this line to see each command for debugging (careful: this will show secrets!)
-# set -o xtrace
+set -o xtrace
 
 if [ "$(yq eval ".custom.runtime_image.build" porter.yaml)" == "null" ]; then
   echo "Runtime image build section isn't specified. Exiting..."
