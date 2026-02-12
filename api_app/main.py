@@ -24,6 +24,7 @@ from core.events import create_start_app_handler, create_stop_app_handler
 from services.logging import disable_unwanted_loggers, initialize_logging, telemetry_processor_callback_function
 from services.cost_update_service import update_workspace_costs
 from service_bus.deployment_status_updater import DeploymentStatusUpdater
+from service_bus.study_container_create import StudyContainerProvisioningService
 from apscheduler.schedulers.background import BackgroundScheduler
 
 def get_application() -> FastAPI:
@@ -85,6 +86,16 @@ async def watch_deployment_status() -> None:
     current_event_loop = asyncio.get_event_loop()
     asyncio.run_coroutine_threadsafe(statusWatcher.receive_messages(), loop=current_event_loop)
 
+
+@app.on_event("startup")
+async def watch_study_container_status() -> None:
+    logging.info("Starting study container status watcher thread")
+    statusWatcher = StudyContainerProvisioningService(app)
+    await statusWatcher.init_repos()
+    logging.info("statusWatcher.init_repos() complete")
+    current_event_loop = asyncio.get_event_loop()
+    logging.info("asyncio.get_event_loop() complete")
+    asyncio.run_coroutine_threadsafe(statusWatcher.receive_messages(), loop=current_event_loop)
 
 @app.on_event("startup")
 @repeat_every(seconds=20, wait_first=True, logger=logging.getLogger())

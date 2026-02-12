@@ -8,7 +8,7 @@ from models.schemas.container_reation_request import ContainerCreateRequest, Ent
 from db.repositories.workspaces import WorkspaceRepository
 from resources import strings
 from services.authentication import get_current_workspace_owner_or_tre_user_or_tre_admin
-from models.domain.data_usage import MHRAProtocolList, MHRAWorkspaceDataUsage, MHRAStorageAccountLimits, MHRAStorageAccountLimitsItem, StorageAccountLimitsInput, WorkspaceDataUsage
+from models.domain.data_usage import MHRAProtocolItem, MHRAProtocolList, MHRAWorkspaceDataUsage, MHRAStorageAccountLimits, MHRAStorageAccountLimitsItem, StorageAccountLimitsInput, WorkspaceDataUsage
 from models.schemas.data_usage import get_workspace_data_usage_responses, get_storage_account_limits_responses, get_storage_info_responses
 from models.schemas.storage_info_request import StorageInfoRequest
 from services.data_usage import DataUsageService, data_usage_service_factory
@@ -105,35 +105,19 @@ async def create_container(conatiner_create_request: ContainerCreateRequest = No
                            data_usage_service: DataUsageService = Depends(data_usage_service_factory),
                            workspace_repo: WorkspaceRepository = Depends(get_repository(WorkspaceRepository))) -> dict:
     try:
-        await data_usage_service.create_container(conatiner_create_request, workspace_repo)
-        return {"message": "Container created successfully"}
+       return await data_usage_service.create_container(conatiner_create_request, workspace_repo)
+
     except Exception as e:
         logging.exception("Failed to create container.")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to create container")
 
-@data_usage_router.post("/roles-group-create",
-                       status_code=status.HTTP_201_CREATED,
-                       name=strings.API_CREATE_USER_RESOURCE_GROUP,
+@get_storage_account_limits.get("/protocol_item/{protocolId}", response_model=MHRAProtocolList,
+                       status_code=status.HTTP_200_OK,
+                       name=strings.API_GET_PERSTUDY_ITEMS,
                        dependencies=[Depends(get_current_workspace_owner_or_tre_user_or_tre_admin)])
-async def create_roles_group(group_request: EntraGroupRequest = None,
-                           data_usage_service: DataUsageService = Depends(data_usage_service_factory)) -> EntraGroup:
+async def get_perstudy_item_method(protocolId: str, data_usage_service: DataUsageService = Depends(data_usage_service_factory)) -> MHRAProtocolItem:
     try:
-
-        return await data_usage_service.create_group(group_request)
-    except Exception as e:
-        logging.exception("Failed to create Roles group.")
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to create Roles group.")
-
-@data_usage_router.post("/assign-roles-to-group",
-                       status_code=status.HTTP_201_CREATED,
-                       name=strings.API_ASSIGN_ROLE_TO_GROUP,
-                       dependencies=[Depends(get_current_workspace_owner_or_tre_user_or_tre_admin)])
-async def assign_roles_to_group(role_assignment_request: RoleAssignmentRequest = None,
-                           data_usage_service: DataUsageService = Depends(data_usage_service_factory)) -> dict:
-    try:
-
-        await data_usage_service.assign_role_to_group(role_assignment_request)
-        return {"message": "Roles assigned to group successfully"}
-    except Exception as e:
-        logging.exception("Failed to role assigned to group.")
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to create Roles group.")
+        return await data_usage_service.get_protocolItem(protocolId)
+    except Exception as exc:
+        logging.exception("Failed to retrieve Protocol item: %s", exc)
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=strings.API_GET_WORKSPACE_DATA_USAGE_INTERNAL_SERVER_ERROR)

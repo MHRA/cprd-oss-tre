@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+import json
 import logging, math
 import uuid
 
@@ -12,13 +13,9 @@ from resources import constants, strings
 from functools import lru_cache
 from fastapi import HTTPException, status
 from azure.data.tables import TableServiceClient, UpdateMode
-from azure.storage.blob import BlobServiceClient
-from msgraph import GraphServiceClient
-from msgraph.generated.models.group import Group
-from azure.identity import ClientSecretCredential
-from azure.keyvault.secrets import SecretClient
-from azure.mgmt.authorization import AuthorizationManagementClient
-from azure.mgmt.storage import StorageManagementClient
+from azure.servicebus.aio import ServiceBusClient
+from azure.servicebus import ServiceBusMessage
+from azure.core.exceptions import HttpResponseError
 
 # make sure CostService is singleton
 @lru_cache(maxsize=None)
@@ -332,6 +329,42 @@ class DataUsageService:
             logging.exception("Unknown error when calling table_client.")
             raise
 
+    async def get_protocolItem(self, protocolId: str) -> MHRAProtocolItem:
+        container_perstudy_table = constants.WORKSPACE_PERSTUDY_USAGE_TABLE_NAME
+
+        try:
+            query_filter = f"ProtocolId eq '{protocolId}'"
+            table_client = self.client.get_table_client(table_name=container_perstudy_table)
+            entities = list(table_client.query_entities(query_filter))
+
+            if not entities:
+                return None
+
+            entity = entities[0]
+
+            return MHRAProtocolItem(
+                workspace_name=entity.get('WorkspaceName', ''),
+                workspace_id=entity.get('WorkspaceId', ''),
+                storage_name=entity.get('StorageName', ''),
+                storage_limits=self._format_size(entity.get('StorageLimits', 0)),
+                protocol_id=entity.get('ProtocolId', ''),
+                protocol_data_usage=self._format_size(entity.get('ProtocolDataUsage', 0)),
+                protocol_data_remaining=self._format_size(
+                    entity.get('StorageLimits', 0) - entity.get('ProtocolDataUsage', 0)
+                ),
+                status=entity.get('Status', ''),
+                protocol_percentage_usage=math.floor(entity.get('ProtocolPercentageUsage', 0)),
+                timestamp=entity.metadata['timestamp']
+            )
+
+        except HttpResponseError:
+            logging.exception("HTTP error when calling table_client.")
+            raise
+        except Exception:
+            logging.exception("Unknown error when calling table_client.")
+            raise
+
+
     async def get_data_usage_for_workspace(self, workspaceId: str) -> WorkspaceDataUsage:
         container_usage_table = constants.WORKSPACE_CONTAINER_USAGE_TABLE_NAME
         fileshare_usage_table = constants.WORKSPACE_FILESHARE_USAGE_TABLE_NAME
@@ -418,6 +451,7 @@ class DataUsageService:
                     "StorageName": constants.STORAGE_ACCOUNT_NAME_WORKSPACE_RESOURCE_GROUP_SSBS.format(workspaceId[-4:]),
                     "WorkspaceName": workspace,
                     "WorkspaceId": workspaceId,
+                    "Status": "Started",
                     "Latest": True
                 }
             table_client.upsert_entity(mode=UpdateMode.MERGE, entity=new_entity)
@@ -438,165 +472,30 @@ class DataUsageService:
 
     async def create_container(self, container_create_request: ContainerCreateRequest, workspace_repo: WorkspaceRepository):
         workspace = await workspace_repo.get_workspace_by_id(container_create_request.workspaceId)
-        account_name = constants.STORAGE_ACCOUNT_NAME_WORKSPACE_RESOURCE_GROUP_SSBS.format(container_create_request.workspaceId[-4:])
 
-        blob_service_client = BlobServiceClient(
-            account_url=self.get_account_url(account_name),
-            credential=credentials.get_credential()
-        )
         template = workspace.templateName
         if template.endswith("a-msl"):
             container_name = f"{container_create_request.protocolId}a"
         else:
             container_name = f"{container_create_request.protocolId}e"
 
-        try:
-            container_client =  blob_service_client.create_container(container_name)
-        except Exception as e:
-            raise Exception(f"Error occurred while creating container: {e}")
+        payload = {
+                "workspaceId": container_create_request.workspaceId,
+                "protocolId": container_name,
+            }
 
+        message = ServiceBusMessage(body=json.dumps(payload), correlation_id=container_name, session_id=container_create_request.workspaceId)
+        async with credentials.get_credential_async() as credential:
+            service_bus_client = ServiceBusClient(config.SERVICE_BUS_FULLY_QUALIFIED_NAMESPACE, credential)
 
-        prefix = "a" if template.endswith("a-msl") else "e"
-        folder_names = [f"Type1{prefix}/", f"Type2{prefix}/"]
-        folderName = f"ReceiveFromExplore{prefix}" if template.endswith("a-msl") else f"SendToAnalyse{prefix}"
-        folder_names.append(folderName + '/')
+            async with service_bus_client:
+                sender = service_bus_client.get_queue_sender(queue_name=config.SERVICE_BUS_STUDY_CONTAINER_CREATE_QUEUE_NAME)
 
-        for folder_name in folder_names:
-            try:
-                blob_name = f"{folder_name}/"
-                container_client.upload_blob(blob_name, b'', overwrite=True)
-            except Exception as e:
-                raise Exception(f"Error occurred while creating blob folder '{folder_name}': {e}")
+                async with sender:
+                    await sender.send_messages(message)
         await self.set_perstudy_items(container_create_request.workspaceId, container_name)
-        return {"container": container_name, "folders": folder_names}
+        return {"container": container_name, "status": "Study item creation request submitted"}
 
-    def get_account_url(self, account_name: str) -> str:
-        return f"https://{account_name}.blob.core.windows.net/"
-
-    def _format_size(self, size_gb):
-
-        if size_gb is None or not isinstance(size_gb, (int, float)) or size_gb < 0:
-            return "0.00GB"
-        if size_gb < 1024:
-            return f"{size_gb:.2f}GB"
-        else:
-            size_tb = size_gb / 1024
-            return f"{size_tb:.2f}TB"
-
-    async def create_group(self, group_request: EntraGroupRequest)->EntraGroup:
-
-        tenant_id = config.AAD_TENANT_ID
-        key_vault_name = constants.CORE_KEYVAULT_NAME.format(config.TRE_ID)
-        client_id = await self._fetch_key_valut("ssbs-management-app-registration-client-id",key_vault_name)
-        client_secret = await self._fetch_key_valut("ssbs-management-app-registration-client-secret",key_vault_name)
-
-        credential = ClientSecretCredential(
-            tenant_id = tenant_id,
-            client_id = client_id,
-            client_secret = client_secret
-        )
-
-        entra_group_name = f"Researcher_Data_Access_{group_request.protocolId}"
-        return await self._create_entra_group(credential, entra_group_name)
-
-    async def _create_entra_group(self, credential, entra_group_name: str) -> EntraGroup:
-        graph_client = GraphServiceClient(credentials=credential)
-
-        group_data = Group(
-            display_name=entra_group_name,
-            mail_enabled=False,
-            mail_nickname=entra_group_name,
-            security_enabled=True
-        )
-
-        try:
-            created_group = await graph_client.groups.post(group_data)
-
-            group_model = EntraGroup(
-                id=created_group.id,
-                display_name=created_group.display_name,
-                mail_nickname=created_group.mail_nickname,
-                security_enabled=created_group.security_enabled
-            )
-
-            return group_model
-
-        except httpx.ConnectError as e:
-            raise Exception(f"Error creating group: {e}")
-
-    async def _fetch_key_valut(self, secret_name:str, key_vault_name:str) -> str:
-        key_vault_url = f"https://{key_vault_name}.vault.azure.net/"
-        credential = credentials.get_credential()
-        client = SecretClient(vault_url=key_vault_url, credential=credential)
-        retrieved_secret = client.get_secret(secret_name)
-        return retrieved_secret.value
-
-    async def assign_role_to_group(self, role_assignment_request: RoleAssignmentRequest):
-        subscription_id = config.SUBSCRIPTION_ID
-        credential = credentials.get_credential()
-        storage_account = await self._get_storage_account(credential,role_assignment_request.workspaceId)
-        role_definition_id = await self._get_role_definition_id(credential, subscription_id)
-
-        await self._create_role_assignment(credential, subscription_id, storage_account.id, role_assignment_request.groupId, role_definition_id)
-
-    async def _get_storage_account(self, credential, workspaceId):
-        subscription_id = config.SUBSCRIPTION_ID
-        storage_account_name = constants.STORAGE_ACCOUNT_NAME_WORKSPACE_RESOURCE_GROUP_SSBS.format(workspaceId)
-        resource_group_name = constants.WORKSPACE_RESOURCE_GROUP_NAME.format(config.TRE_ID, workspaceId)
-        storage_client = StorageManagementClient(credential, subscription_id)
-        try:
-            return storage_client.storage_accounts.get_properties(
-                resource_group_name=resource_group_name,
-                account_name=storage_account_name
-            )
-        except Exception as e:
-            raise Exception(f"Error getting storage account: {e}")
-
-    async def _get_role_definition_id(self, credential, subscription_id):
-        authorization_client = AuthorizationManagementClient(credential, subscription_id)
-        role_name = 'Workspace Researcher Blob Data Contributor'
-        role_definitions = authorization_client.role_definitions.list(
-            scope=f"/subscriptions/{subscription_id}"
-        )
-
-        role_definition = next((rd for rd in role_definitions if rd.role_name == role_name), None)
-        if role_definition is None:
-            raise Exception(f"Role definition not found for {role_name}")
-
-        return role_definition.id.split('/')[-1]
-
-    async def _create_role_assignment(self, credential, subscription_id, scope, principal_id, role_definition_id):
-        authorization_client = AuthorizationManagementClient(credential, subscription_id)
-        role_assignment_name = str(uuid.uuid4())
-
-        action = "Microsoft.Storage/storageAccounts/blobServices/containers/blobs/delete"
-        conditions = [
-            ("Microsoft.Storage/storageAccounts/blobServices/containers/blobs:path", "SendToAnalyse"),
-            ("Microsoft.Storage/storageAccounts/blobServices/containers/blobs:path", "Type1"),
-            ("Microsoft.Storage/storageAccounts/blobServices/containers/blobs:path", "Type2")
-        ]
-
-        expression = self._build_expression(action, conditions,"&&")
-        logging.info(expression)
-        try:
-            authorization_client.role_assignments.create(
-                scope=scope,
-                role_assignment_name=role_assignment_name,
-                parameters = {
-                    "role_definition_id": f"/subscriptions/{subscription_id}/providers/Microsoft.Authorization/roleDefinitions/{role_definition_id}",
-                    "principal_id": principal_id,
-                    "condition": expression,
-                    "condition_version": "2.0"
-                }
-            )
-        except Exception as e:
-            raise Exception(f"Error creating role assignment: {e}")
-
-    def _build_expression(self, action, conditions, operator="||"):
-        expression_parts = [f"ActionMatches{{'{action}'}}"]
-        for attr, val in conditions:
-            expression_parts.append(f"NOT@Resource[{attr}] StringEquals '{val}'")
-        return f"({f' {operator} '.join(expression_parts)})"
 
 @lru_cache(maxsize=None)
 def data_usage_service_factory() -> DataUsageService:

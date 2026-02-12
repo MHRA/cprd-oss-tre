@@ -62,6 +62,7 @@ class MHRAProtocolItem(BaseModel):
     protocol_data_usage: Optional[str] = None
     protocol_data_remaining: Optional[str] = None
     protocol_percentage_usage: Optional[str] = None
+    status: Optional[str] = None
 
 class MHRAProtocolList(BaseModel):
     protocol_items: List[MHRAProtocolItem]
