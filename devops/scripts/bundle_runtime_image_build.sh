@@ -3,7 +3,7 @@ set -o errexit
 set -o pipefail
 set -o nounset
 # Uncomment this line to see each command for debugging (careful: this will show secrets!)
-set -o xtrace
+# set -o xtrace
 
 if [ "$(yq eval ".custom.runtime_image.build" porter.yaml)" == "null" ]; then
   echo "Runtime image build section isn't specified. Exiting..."
@@ -22,8 +22,6 @@ version_line=$(cat "${version_file}")
 version_array=( ${version_line//=/ } ) # split by =
 version="${version_array[1]//\"}" # second element is what we want, remove " chars
 
-echo $(az --version) 
-echo $(docker version)
 az acr login -n "${ACR_NAME}"
 
 docker_cache=("--cache-from" "${FULL_IMAGE_NAME_PREFIX}/${image_name}:${version}")
