@@ -3,7 +3,7 @@ set -o errexit
 set -o pipefail
 set -o nounset
 # Uncomment this line to see each command for debugging (careful: this will show secrets!)
-set -o xtrace
+# set -o xtrace
 
 if [ "$(yq eval ".custom.runtime_image.build" porter.yaml)" == "null" ]; then
   echo "Runtime image build section isn't specified. Exiting..."
@@ -31,8 +31,6 @@ if [ -n "${CI_CACHE_ACR_NAME:-}" ]; then
 	docker_cache+=("--cache-from" "${CI_CACHE_ACR_NAME}.azurecr.io/${IMAGE_NAME_PREFIX}/${image_name}:${version}")
 fi
 
-which -a docker
-docker version
 docker build --build-arg BUILDKIT_INLINE_CACHE=1 \
   -t "${FULL_IMAGE_NAME_PREFIX}/${image_name}:${version}" \
   "${docker_cache[@]}" -f "${docker_file}" "${docker_context}"
