@@ -75,4 +75,6 @@ locals {
     r.val if(r.match == var.tre_id) || endswith(var.tre_id, r.match)
   ]
   pe_storage_environment = length(local.pe_storage_matches) > 0 ? local.pe_storage_matches[0] : "?"
+
+  study_folder_create_queue_name = "study-folder-create"
 }

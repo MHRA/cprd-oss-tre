@@ -30,6 +30,14 @@ resource "azurerm_servicebus_queue" "service_bus_deployment_status_update_queue"
   requires_session    = true
 }
 
+resource "azurerm_servicebus_queue" "study_folder_create" {
+  name         = local.study_folder_create_queue_name
+  namespace_id = azurerm_servicebus_namespace.sb.id
+
+  enable_partitioning = false
+  requires_session    = true
+}
+
 resource "azurerm_private_dns_zone" "servicebus" {
   name                = "privatelink.servicebus.windows.net"
   resource_group_name = azurerm_resource_group.core.name
