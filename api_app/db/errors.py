@@ -36,3 +36,6 @@ class TargetTemplateVersionDoesNotExist(Exception):
 
 class VersionDowngradeDenied(Exception):
     """Raised when user attempts to downgrade a resource to a lower version."""
+
+class UnableToGenerateWorkspaceId(Exception):
+    """Raised when a valid workspace Id could not be generated."""
