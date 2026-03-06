@@ -2,7 +2,8 @@ import os
 import logging
 import json
 import re
-from datetime import datetime, timedelta
+from datetime import datetime, time, timedelta
+from time import time
 from typing import Tuple
 
 from azure.core.exceptions import ResourceExistsError
@@ -37,13 +38,26 @@ def create_container(account_name: str, request_id: str):
         logging.info(f'Did not create a new container. Container already exists for request id: {request_id}.')
 
 
-def get_request_files(account_name: str, request_id: str) -> list:
-    files = []
-    blob_service_client = BlobServiceClient(account_url=get_account_url(account_name), credential=get_credential())
+def get_request_files(account_name: str, request_id: str,
+                      max_retries: int = 3, base_delay: int = 2) -> list:
+    blob_service_client = BlobServiceClient(
+        account_url=get_account_url(account_name),
+        credential=get_credential()
+    )
     container_client = blob_service_client.get_container_client(container=request_id)
 
-    for blob in container_client.list_blobs():
-        files.append({"name": blob.name, "size": blob.size})
+    for attempt in range(max_retries):
+        files = []
+
+        for blob in container_client.list_blobs():
+            files.append({"name": blob.name, "size": blob.size})
+
+        if files:
+            return files
+
+        if attempt < max_retries - 1:
+            sleep_time = base_delay * (2 ** attempt)
+            time.sleep(sleep_time)
 
     return files
 

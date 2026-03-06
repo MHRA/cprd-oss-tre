@@ -19,6 +19,7 @@ from models.domain.workspace import Workspace
 from models.schemas.resource import ResourcePatch
 from models.schemas.workspace import WorkspaceInCreate
 from services.cidr_service import generate_new_cidr, is_network_available
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 
 class WorkspaceRepository(ResourceRepository):
@@ -48,8 +49,7 @@ class WorkspaceRepository(ResourceRepository):
         return f'SELECT * FROM c WHERE c.resourceType ="{ResourceType.Workspace}" AND {IS_NOT_DELETED_CLAUSE} AND c.templateName IN ("tre-workspace-a-msl","tre-workspace-e-msl")'
 
     def generate_workspace_id(self):
-        # To mitigate failed deployments, we check if the Storage Accounts can be created.
-        # All storage account names are located in resource/constants.py file.
+
         storage_account_config_list = [
             constants.STORAGE_ACCOUNT_NAME_WORKSPACE_RESOURCE_GROUP_GENERAL,
             constants.STORAGE_ACCOUNT_NAME_WORKSPACE_RESOURCE_GROUP_SSBS,
@@ -60,9 +60,7 @@ class WorkspaceRepository(ResourceRepository):
             constants.STORAGE_ACCOUNT_NAME_EXPORT_BLOCKED
         ]
 
-        # We set a custom ClientType header to mitigate 429 errors.
-        client_type_header = str(uuid.uuid4())
-        client_type_header_short = client_type_header[-8:]
+        client_type_header_short = str(uuid.uuid4())[-8:]
 
         storage_client = StorageManagementClient(
             credential=credentials.get_credential(),
@@ -71,42 +69,55 @@ class WorkspaceRepository(ResourceRepository):
         )
 
         max_try = 10
-        current_try = 0
-        keep_checking_storage_availability = True
-        while (keep_checking_storage_availability and current_try < max_try):
-            # We expect to find an available ID within a few tries, but just in case we add
-            # a maximum tries mechanism to avoid infinit loop. In this case, the deployment will fail.
-            current_try = current_try + 1
+
+        def check_storage_name(account_name):
+            result = storage_client.storage_accounts.check_name_availability(
+                {"name": account_name, "type": "Microsoft.Storage/storageAccounts"}
+            )
+            return account_name, result.name_available
+
+        for attempt in range(1, max_try + 1):
 
             full_workspace_id = str(uuid.uuid4())
             short_workspace_id = full_workspace_id[-4:]
 
-            for storage_account_config in storage_account_config_list:
-                account_name = storage_account_config.format(short_workspace_id)
+            account_names = [
+                cfg.format(short_workspace_id)
+                for cfg in storage_account_config_list
+            ]
 
-                # Check the name availability
-                availability_check = storage_client.storage_accounts.check_name_availability({"name": account_name, "type": "Microsoft.Storage/storageAccounts"})
-                keep_checking_storage_availability = keep_checking_storage_availability and availability_check.name_available
+            with ThreadPoolExecutor(max_workers=len(account_names)) as executor:
 
-                # We restart the while loop.
-                if not keep_checking_storage_availability:
-                    logging.info(f">>>>> Storage account name '{account_name}' is NOT available for creation. A new Workspace ID will be created. Try {current_try}.")
-                    keep_checking_storage_availability = True
-                    break
+                futures = {
+                    executor.submit(check_storage_name, name): name
+                    for name in account_names
+                }
 
-                # This wait time is here to avoid problems with rate limit.
-                time.sleep(2.0)
-            # This instruction is executed if the for loop can iteraty completely over the list
-            # and no break instruction is NOT executed.
-            else:
-                keep_checking_storage_availability = False
-                workspace_id = full_workspace_id
+                all_available = True
 
-        if current_try == max_try and keep_checking_storage_availability:
-            return None
+                for future in as_completed(futures):
 
-        else:
-            return workspace_id
+                    account_name, available = future.result()
+
+                    if not available:
+                        logging.info(
+                            f"Storage account '{account_name}' unavailable. "
+                            f"Retrying workspace id generation. Attempt {attempt}"
+                        )
+
+                        all_available = False
+
+                        # cancel remaining tasks
+                        for f in futures:
+                            f.cancel()
+
+                        break
+
+            if all_available:
+                return full_workspace_id
+
+        logging.error("Failed to generate a valid Workspace ID after maximum retries.")
+        return None
 
     async def get_workspaces(self) -> List[Workspace]:
         query = WorkspaceRepository.workspaces_query_string()
