@@ -14,6 +14,7 @@ from functools import lru_cache
 from fastapi import HTTPException, status
 from azure.data.tables import TableServiceClient, UpdateMode
 from azure.servicebus.aio import ServiceBusClient
+from azure.keyvault.secrets import SecretClient
 from azure.servicebus import ServiceBusMessage
 from azure.core.exceptions import HttpResponseError
 
@@ -496,6 +497,22 @@ class DataUsageService:
         await self.set_perstudy_items(container_create_request.workspaceId, container_name)
         return {"container": container_name, "status": "Study item creation request submitted"}
 
+    def _format_size(self, size_gb):
+
+            if size_gb is None or not isinstance(size_gb, (int, float)) or size_gb < 0:
+                return "0.00GB"
+            if size_gb < 1024:
+                return f"{size_gb:.2f}GB"
+            else:
+                size_tb = size_gb / 1024
+                return f"{size_tb:.2f}TB"
+
+    async def _fetch_key_valut(self, secret_name:str, key_vault_name:str) -> str:
+            key_vault_url = f"https://{key_vault_name}.vault.azure.net/"
+            credential = credentials.get_credential()
+            client = SecretClient(vault_url=key_vault_url, credential=credential)
+            retrieved_secret = client.get_secret(secret_name)
+            return retrieved_secret.value
 
 @lru_cache(maxsize=None)
 def data_usage_service_factory() -> DataUsageService:
