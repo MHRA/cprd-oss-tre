@@ -101,7 +101,6 @@ class StudyContainerProvisioningService:
             headers={"ClientType": config.CLIENT_TYPE_CUSTOM_HEADER},
         )
 
-        self.graph_client = await self._init_graph_client()
 
     # ----------------------------
     # Service Bus
@@ -210,7 +209,7 @@ class StudyContainerProvisioningService:
         result = await self._create_container(request, workspace)
         logging.info(f"Container created: {result['name']} with folders {result['folders']}")
         ctx.container_name = result["name"]
-        suffix = result["name"][-1]
+        suffix = ctx.container_name[-1] if ctx.container_name else None
         ctx.suffix = suffix
         async def compensate():
             await self._delete_container(request.workspaceId, ctx.container_name)
@@ -222,9 +221,9 @@ class StudyContainerProvisioningService:
         group = await self._create_group(request)
         logging.info(f"Entra group created: {group.display_name} (id={group.id})")
         ctx.group_id = group.id
-
         async def compensate():
-            await self.graph_client.groups.by_group_id(group.id).delete()
+             graph_client = await self._init_graph_client(request.workspaceId)
+             await graph_client.groups.by_group_id(group.id).delete()
 
         ctx.compensations.append(compensate)
 
@@ -246,7 +245,7 @@ class StudyContainerProvisioningService:
                 # ------------------------------------
                 # 2. Verify Entra group exists
                 # ------------------------------------
-                await self._assert_group_exists(ctx.group_id)
+                await self._assert_group_exists(ctx.group_id,request.workspaceId)
 
                 # ------------------------------------
                 # 3. Assign role
@@ -295,7 +294,7 @@ class StudyContainerProvisioningService:
     async def saga_update_table(self, ctx, request):
         await self.set_perstudy_items(
             request.workspaceId,
-            ctx.container_name,
+            request.protocolId,
             status="Success"
         )
 
@@ -377,9 +376,9 @@ class StudyContainerProvisioningService:
     # =====================================================
     # Entra ID / Graph
     # =====================================================
-    async def _init_graph_client(self):
+    async def _init_graph_client(self,workspaceId:str)-> GraphServiceClient:
         tenant_id = config.AAD_TENANT_ID
-        vault = constants.CORE_KEYVAULT_NAME.format(config.TRE_ID)
+        vault = constants.WS_KEYVAULT_NAME.format(config.TRE_ID,workspaceId[-4:])
 
         client_id, client_secret = await asyncio.gather(
             self._fetch_secret(
@@ -407,8 +406,8 @@ class StudyContainerProvisioningService:
             mail_nickname=name,
             security_enabled=True,
         )
-
-        created = await self.graph_client.groups.post(group)
+        graph_client = await self._init_graph_client(request.workspaceId)
+        created = await graph_client.groups.post(group)
 
         return EntraGroup(
             id=created.id,
@@ -583,9 +582,10 @@ class StudyContainerProvisioningService:
     # =====================================================
     # Group existence check
     # =====================================================
-    async def _assert_group_exists(self, group_id: str):
+    async def _assert_group_exists(self, group_id: str, workspaceId:str):
         try:
-            await self.graph_client.groups.by_group_id(group_id).get()
+            graph_client = await self._init_graph_client(workspaceId)
+            await graph_client.groups.by_group_id(group_id).get()
         except ODataError:
             raise RuntimeError(
                 f"Entra group does not exist: {group_id}"
