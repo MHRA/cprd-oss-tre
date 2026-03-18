@@ -19,6 +19,7 @@ msal==1.21.0
 opencensus-ext-azure==1.1.7
 opencensus-ext-logging==0.1.1
 PyJWT==2.6.0
+rsa>=4.9.0
 uvicorn[standard]==0.20.0
 semantic-version==2.10.0
 pytz~=2022.7
