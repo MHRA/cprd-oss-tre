@@ -79,9 +79,11 @@ async def get_workspace_storage(storage_info_request :StorageInfoRequest = None,
                        status_code=status.HTTP_200_OK,
                        name=strings.API_GET_PERSTUDY_ITEMS,
                        dependencies=[Depends(get_current_workspace_owner_or_tre_user_or_tre_admin)])
-async def get_perstudy_items_method(workspaceId: str, data_usage_service: DataUsageService = Depends(data_usage_service_factory)) -> MHRAProtocolList:
+async def get_perstudy_items_method(workspaceId: str, data_usage_service: DataUsageService = Depends(data_usage_service_factory),
+                                    user=Depends(get_current_tre_user_or_tre_admin),
+                                    workspace_repo: WorkspaceRepository = Depends(get_repository(WorkspaceRepository))) -> MHRAProtocolList:
     try:
-        return await data_usage_service.get_perstudy_items(workspaceId)
+        return await data_usage_service.get_perstudy_items(workspaceId, user,workspace_repo)
     except Exception as exc:
         logging.exception("Failed to retrieve Protocol item: %s", exc)
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=strings.API_GET_WORKSPACE_DATA_USAGE_INTERNAL_SERVER_ERROR)

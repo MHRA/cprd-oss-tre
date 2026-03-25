@@ -2,10 +2,10 @@ from datetime import datetime, timezone
 import json
 import logging, math
 import uuid
+import asyncio
 
-import httpx
 from db.repositories.workspaces import WorkspaceRepository
-from models.schemas.container_reation_request import ContainerCreateRequest, EntraGroup, EntraGroupRequest, RoleAssignmentRequest
+from models.schemas.container_reation_request import ContainerCreateRequest
 from models.domain.data_usage import MHRAProtocolItem, MHRAProtocolList, MHRAWorkspaceDataUsage, MHRAContainerUsageItem, MHRAFileshareUsageItem, MHRAStorageAccountLimits, MHRAStorageAccountLimitsItem, StorageAccountLimitsInput, WorkspaceDataUsage
 from models.schemas.storage_info_request import StorageInfoRequest
 from core import config, credentials
@@ -17,6 +17,9 @@ from azure.servicebus.aio import ServiceBusClient
 from azure.keyvault.secrets import SecretClient
 from azure.servicebus import ServiceBusMessage
 from azure.core.exceptions import HttpResponseError
+from msgraph import GraphServiceClient
+from azure.identity import ClientSecretCredential
+from models.domain.authentication import User
 
 # make sure CostService is singleton
 @lru_cache(maxsize=None)
@@ -294,40 +297,102 @@ class DataUsageService:
             logging.exception("Unknown error when calling table_client.")
             raise Exception("Unknown error when calling table_client.")
 
-    async def get_perstudy_items(self, workspaceId: str) -> MHRAProtocolList:
+    async def get_perstudy_items(
+        self,
+        workspaceName: str,
+        user: User,
+        workspace_repo: WorkspaceRepository
+    ) -> MHRAProtocolList:
+
         container_perstudy_table = constants.WORKSPACE_PERSTUDY_USAGE_TABLE_NAME
 
         try:
-            protocol_items = []
-            query_filter = f"WorkspaceName eq '{workspaceId}' and Latest eq true"
             table_client = self.client.get_table_client(table_name=container_perstudy_table)
+
+            query_filter = f"WorkspaceName eq '{workspaceName}' and Latest eq true"
             entities = list(table_client.query_entities(query_filter))
 
+            if not entities:
+                return MHRAProtocolList(protocol_items=[])
+
+            # Extract workspaceId once
+            workspaceId = entities[0].get("WorkspaceId")
+
+            workspace = await workspace_repo.get_workspace_by_id(workspaceId)
+            is_owner = workspace.user.email == user.mail
+            user_email = (user.mail or "").lower()
+
+            protocol_members_map = {}
+
+            if not is_owner:
+                # Build unique protocol IDs (ONE loop)
+                protocol_ids = set()
+
+                for entity in entities:
+                    pid = entity.get("ProtocolId")
+                    if pid:
+                        protocol_ids.add(pid)
+
+                async def fetch_members(protocol_id):
+                    members = await self.get_group_members(protocol_id, workspaceId)
+                    return protocol_id, {
+                        (m.get("mail") or "").lower()
+                        for m in members
+                    }
+
+                results = await asyncio.gather(
+                    *[fetch_members(pid) for pid in protocol_ids]
+                )
+
+                protocol_members_map = dict(results)
+
+
+            protocol_items = []
+
             for entity in entities:
+                protocol_id = entity.get("ProtocolId", "")
+
+                # Authorization check
+                if not is_owner:
+                    if user_email not in protocol_members_map.get(protocol_id, set()):
+                        continue
+
+                storage_limits = entity.get("StorageLimits", 0)
+                protocol_usage = entity.get("ProtocolDataUsage", 0)
+
                 protocol_items.append(
                     MHRAProtocolItem(
-                        workspace_name=entity.get('WorkspaceName', ''),
-                        workspace_id=entity.get('WorkspaceId', ''),
-                        storage_name=entity.get('StorageName', ''),
-                        storage_limits=self._format_size(entity.get('StorageLimits', 0)),
-                        protocol_id=entity.get('ProtocolId', ''),
-                        protocol_data_usage=self._format_size(entity.get('ProtocolDataUsage', 0)),
+                        workspace_name=entity.get("WorkspaceName", ""),
+                        workspace_id=entity.get("WorkspaceId", ""),
+                        storage_name=entity.get("StorageName", ""),
+                        storage_limits=self._format_size(storage_limits),
+                        protocol_id=protocol_id,
+                        protocol_data_usage=self._format_size(protocol_usage),
                         protocol_data_remaining=self._format_size(
-
-                            (entity.get('StorageLimits', 0) - entity.get('ProtocolDataUsage', 0))
+                            storage_limits - protocol_usage
                         ),
-                        protocol_percentage_usage=math.floor(entity.get('ProtocolPercentageUsage',0)),
-                        timestamp=entity.metadata['timestamp']
+                        protocol_percentage_usage=math.floor(
+                            entity.get("ProtocolPercentageUsage", 0)
+                        ),
+                        timestamp=entity.metadata.get("timestamp")
                     )
                 )
 
             return MHRAProtocolList(protocol_items=protocol_items)
 
-        except HttpResponseError as e:
-            logging.exception("HTTP error when calling table_client.")
+        except HttpResponseError:
+            logging.exception(
+                "HTTP error in get_perstudy_items workspaceName=%s user=%s",
+                workspaceName,
+                user.mail
+            )
             raise
-        except Exception as e:
-            logging.exception("Unknown error when calling table_client.")
+        except Exception:
+            logging.exception(
+                "Unexpected error in get_perstudy_items workspaceName=%s user=%s",
+                workspaceName,
+                user.mail
+            )
             raise
 
     async def get_protocolItem(self, protocolId: str) -> MHRAProtocolItem:
@@ -514,6 +579,67 @@ class DataUsageService:
             retrieved_secret = client.get_secret(secret_name)
             return retrieved_secret.value
 
+    async def get_group_members(self, protocolId: str, workspaceId: str) -> list:
+
+        tenant_id = config.AAD_TENANT_ID
+        key_vault_name: str = constants.CORE_KEYVAULT_NAME.format(config.TRE_ID)
+
+        client_id: str = await self._fetch_key_valut(
+            'ssbs-management-app-registration-client-id',
+            key_vault_name
+        )
+
+        client_secret: str = await self._fetch_key_valut(
+            'ssbs-management-app-registration-client-secret',
+            key_vault_name
+        )
+
+        credential = ClientSecretCredential(
+            tenant_id=tenant_id,
+            client_id=client_id,
+            client_secret=client_secret
+        )
+
+        client = GraphServiceClient(credentials=credential)
+
+        entra_group_name: str = constants.PROTOCOL_CONTAINER_ASSINED_USERS_ENTRA_GROUP.format(config.TRE_ID, workspaceId[-4:], protocolId)
+
+
+        groups = await client.groups.get(
+            query_parameters={
+                "filter": f"displayName eq '{entra_group_name}'"
+            }
+        )
+
+        if not groups.value:
+            return []
+
+        group_id = groups.value[0].id
+
+
+        response = await client.groups.by_group_id(group_id).members.graph_user.get()
+
+        members_list = []
+
+        while response:
+            for user in response.value:
+                members_list.append({
+                    "id": user.id,
+                    "displayName": user.display_name,
+                    "userPrincipalName": user.user_principal_name,
+                    "mail": user.mail
+                })
+
+            if response.odata_next_link:
+                response = await client.groups.by_group_id(group_id).members.with_url(
+                    response.odata_next_link
+                ).graph_user.get()
+            else:
+                break
+
+        return members_list
+
 @lru_cache(maxsize=None)
+
 def data_usage_service_factory() -> DataUsageService:
     return DataUsageService()
