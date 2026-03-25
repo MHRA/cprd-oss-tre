@@ -34,3 +34,6 @@ CORE_KEYVAULT_NAME = "kv-{}"
 WS_KEYVAULT_NAME = "kv-{}-ws-{}"
 CORE_VNET_NAME = "vnet-{}"
 
+# Used for creating SSBS containers
+PROTOCOL_CONTAINER_ASSINED_USERS_ENTRA_GROUP = "{}-ws-{}-{}"
+SSBS_STORAGE_ACCOUNT_ACCESS_ROLE_NAME = "Storage Blob Data Contributor"

@@ -8,7 +8,7 @@ class ContainerCreateRequest(BaseModel):
     class Config:
         schema_extra = {
             "example": {
-                "workspaceId": "ed299",
+                "workspaceId": "02810c1e-d82c-49c5-9bd1-919877c85590",
                 "protocolId": "25-123456"
             }
         }
@@ -20,7 +20,7 @@ class EntraGroupRequest(BaseModel):
     class Config:
         schema_extra = {
             "example": {
-                "workspaceId": "ed299",
+                "workspaceId": "02810c1e-d82c-49c5-9bd1-919877c85590",
                 "protocolId": "25-123456"
             }
         }
@@ -32,7 +32,7 @@ class RoleAssignmentRequest(BaseModel):
     class Config:
         schema_extra = {
             "example": {
-                "workspaceId": "ed299",
+                "workspaceId": "02810c1e-d82c-49c5-9bd1-919877c85590",
                 "groupId": "123456"
             }
         }

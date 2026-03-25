@@ -286,3 +286,9 @@ API_GET_WORKSPACE_DATA_USAGE_CLIENTS = "Return Workspace data usage."
 API_CREATE_WORKSPACE_DATA_USAGE_CLIENTS = "Set Workspace data limits."
 API_GET_PERSTUDY_ITEMS = "Return Protocol data usage."
 API_GET_WORKSPACE_DATA_USAGE_INTERNAL_SERVER_ERROR = "Error returning Workspace data usage."
+
+# Used for retrieving workspace type during SSBS container creation
+A_MSL_WORKSPACE = "tre-workspace-a-msl"
+E_MSL_WORKSPACE = "tre-workspace-e-msl"
+COSMOS_DATABASE_NAME = "AzureTRE"
+RESOURCES_CONTAINER_NAME = "Resources"

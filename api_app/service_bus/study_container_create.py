@@ -9,7 +9,8 @@ from datetime import datetime, timezone
 from azure.servicebus.aio import ServiceBusClient, AutoLockRenewer
 from azure.servicebus.exceptions import OperationTimeoutError, ServiceBusConnectionError
 from azure.identity import ClientSecretCredential
-from azure.keyvault.secrets.aio import SecretClient
+# from azure.keyvault.secrets.aio import SecretClient
+from azure.keyvault.secrets import SecretClient
 from azure.storage.blob.aio import BlobServiceClient
 from azure.data.tables import TableServiceClient, UpdateMode
 from azure.mgmt.authorization import AuthorizationManagementClient
@@ -18,13 +19,14 @@ from azure.core.exceptions import ResourceExistsError, HttpResponseError
 from azure.core.exceptions import ResourceNotFoundError
 from msgraph.generated.models.o_data_errors.o_data_error import ODataError
 from azure.servicebus import NEXT_AVAILABLE_SESSION
+from azure.cosmos import CosmosClient
 
 from msgraph import GraphServiceClient
 from msgraph.generated.models.group import Group
 
 from api.dependencies.database import get_db_client
 from core import config, credentials
-from resources import constants
+from resources import constants, strings
 from models.schemas.container_reation_request import ContainerCreateRequest, EntraGroup
 from db.repositories.workspaces import WorkspaceRepository
 
@@ -229,8 +231,8 @@ class StudyContainerProvisioningService:
 
     async def saga_assign_role(self, ctx, request):
         logging.info(f"Assigning RBAC role to group {ctx.group_id} for container {ctx.container_name}")
-        max_retries = 3
-        delay = 2  # seconds
+        max_retries = 6
+        delay = 15  # seconds
 
         for attempt in range(1, max_retries + 1):
             try:
@@ -299,6 +301,42 @@ class StudyContainerProvisioningService:
         )
 
     # =====================================================
+    # Workspace
+    # =====================================================
+    async def _get_workspace_type(self, workspaceId):
+        # We create the suffix based on the Workspace Template name.
+        # Cosmos Client requires the Managed Identity id-api-<TRE_ID> to have builtin role "Cosmos DB Built-in Data Reader" assigned.
+        cosmos_client = CosmosClient(
+            url=f"https://cosmos-{config.TRE_ID}.documents.azure.com/",
+            credential=credentials.get_credential()
+        )
+
+        cosmos_database = cosmos_client.get_database_client(strings.COSMOS_DATABASE_NAME)
+        cosmos_container = cosmos_database.get_container_client(strings.RESOURCES_CONTAINER_NAME)
+
+        query = f"SELECT * FROM {strings.RESOURCES_CONTAINER_NAME} r WHERE r.id = @workspaceId"
+        parameters = [ dict(name='@workspaceId', value=workspaceId) ]
+        results = cosmos_container.query_items(
+            query=query,
+            parameters=parameters
+        )
+
+        # At this stage there should only one item in results.
+        for item in results:
+            if item['templateName'] == "tre-workspace-a-msl":
+                suffix = "a"
+            elif item['templateName'] == "tre-workspace-e-msl":
+                suffix = "e"
+            else:
+                logging.error(
+                    "Unable do define Workspace Type for workspace %s",
+                    workspaceId
+                )
+                raise
+
+        return suffix
+
+    # =====================================================
     # Container
     # =====================================================
     async def _create_container(self, request, workspace):
@@ -310,7 +348,8 @@ class StudyContainerProvisioningService:
         suffix = container_name[-1]
 
         service_client = BlobServiceClient(
-            account_url=f"https://{account_name}.blob.core.windows.net/",
+            # account_url=f"https://{account_name}.blob.core.windows.net/",
+            account_url=f"https://{account_name}{suffix}.blob.core.windows.net/",
             credential=credentials.get_credential(),
         )
 
@@ -365,8 +404,14 @@ class StudyContainerProvisioningService:
             workspace_id[-4:]
         )
 
+        try:
+            suffix = await self._get_workspace_type(workspace_id)
+        except:
+            raise
+
         client = BlobServiceClient(
-            account_url=f"https://{account_name}.blob.core.windows.net/",
+            # account_url=f"https://{account_name}.blob.core.windows.net/",
+            account_url=f"https://{account_name}{suffix}.blob.core.windows.net/",
             credential=credentials.get_credential(),
         )
 
@@ -378,16 +423,18 @@ class StudyContainerProvisioningService:
     # =====================================================
     async def _init_graph_client(self,workspaceId:str)-> GraphServiceClient:
         tenant_id = config.AAD_TENANT_ID
-        vault = constants.WS_KEYVAULT_NAME.format(config.TRE_ID,workspaceId[-4:])
+        vault = constants.CORE_KEYVAULT_NAME.format(config.TRE_ID)
 
-        client_id, client_secret = await asyncio.gather(
-            self._fetch_secret(
-                "ssbs-management-app-registration-client-id", vault
-            ),
-            self._fetch_secret(
-                "ssbs-management-app-registration-client-secret", vault
-            ),
+        secret_client = SecretClient(
+            vault_url=f"https://{vault}.vault.azure.net/",
+            credential=credentials.get_credential(),
         )
+
+        client_id_secret = secret_client.get_secret("ssbs-management-app-registration-client-id")
+        client_id = client_id_secret.value
+
+        client_secret_secret = secret_client.get_secret("ssbs-management-app-registration-client-secret")
+        client_secret = client_secret_secret.value
 
         credential = ClientSecretCredential(
             tenant_id=tenant_id,
@@ -398,7 +445,8 @@ class StudyContainerProvisioningService:
         return GraphServiceClient(credentials=credential)
 
     async def _create_group(self, request) -> EntraGroup:
-        name = f"Researcher_Data_Access_{request.protocolId}"
+        # name = f"Researcher_Data_Access_{request.protocolId}"
+        name = constants.PROTOCOL_CONTAINER_ASSINED_USERS_ENTRA_GROUP.format(config.TRE_ID, request.workspaceId[-4:], request.protocolId)
 
         group = Group(
             display_name=name,
@@ -458,18 +506,26 @@ class StudyContainerProvisioningService:
         rg = constants.WORKSPACE_RESOURCE_GROUP_NAME.format(
             config.TRE_ID, workspace_id[-4:]
         )
+
+        try:
+            suffix = await self._get_workspace_type(workspace_id)
+        except:
+            raise
+
         name = constants.STORAGE_ACCOUNT_NAME_WORKSPACE_RESOURCE_GROUP_SSBS.format(
             workspace_id[-4:]
         )
 
-        return client.storage_accounts.get_properties(rg, name)
+        full_storage_account_name = f"{name}{suffix}"
+
+        return client.storage_accounts.get_properties(rg, full_storage_account_name)
 
     async def _get_role_definition_id(self, credential, subscription_id):
         client = AuthorizationManagementClient(
             credential, subscription_id
         )
 
-        role_name = "Workspace Researcher Blob Data Contributor"
+        role_name = constants.SSBS_STORAGE_ACCOUNT_ACCESS_ROLE_NAME
 
         for rd in client.role_definitions.list(
             f"/subscriptions/{subscription_id}"
@@ -565,8 +621,14 @@ class StudyContainerProvisioningService:
             workspace_id[-4:]
         )
 
+        try:
+            suffix = await self._get_workspace_type(workspace_id)
+        except:
+            raise
+
         client = BlobServiceClient(
-            account_url=f"https://{account_name}.blob.core.windows.net/",
+            # account_url=f"https://{account_name}.blob.core.windows.net/",
+            account_url=f"https://{account_name}{suffix}.blob.core.windows.net/",
             credential=credentials.get_credential(),
         )
 
