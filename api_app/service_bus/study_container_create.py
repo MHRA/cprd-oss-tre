@@ -9,7 +9,6 @@ from datetime import datetime, timezone
 from azure.servicebus.aio import ServiceBusClient, AutoLockRenewer
 from azure.servicebus.exceptions import OperationTimeoutError, ServiceBusConnectionError
 from azure.identity import ClientSecretCredential
-# from azure.keyvault.secrets.aio import SecretClient
 from azure.keyvault.secrets import SecretClient
 from azure.storage.blob.aio import BlobServiceClient
 from azure.data.tables import TableServiceClient, UpdateMode
@@ -348,7 +347,6 @@ class StudyContainerProvisioningService:
         suffix = container_name[-1]
 
         service_client = BlobServiceClient(
-            # account_url=f"https://{account_name}.blob.core.windows.net/",
             account_url=f"https://{account_name}{suffix}.blob.core.windows.net/",
             credential=credentials.get_credential(),
         )
@@ -410,7 +408,6 @@ class StudyContainerProvisioningService:
             raise
 
         client = BlobServiceClient(
-            # account_url=f"https://{account_name}.blob.core.windows.net/",
             account_url=f"https://{account_name}{suffix}.blob.core.windows.net/",
             credential=credentials.get_credential(),
         )
@@ -445,7 +442,6 @@ class StudyContainerProvisioningService:
         return GraphServiceClient(credentials=credential)
 
     async def _create_group(self, request) -> EntraGroup:
-        # name = f"Researcher_Data_Access_{request.protocolId}"
         name = constants.PROTOCOL_CONTAINER_ASSINED_USERS_ENTRA_GROUP.format(config.TRE_ID, request.workspaceId[-4:], request.protocolId)
 
         group = Group(
@@ -627,7 +623,6 @@ class StudyContainerProvisioningService:
             raise
 
         client = BlobServiceClient(
-            # account_url=f"https://{account_name}.blob.core.windows.net/",
             account_url=f"https://{account_name}{suffix}.blob.core.windows.net/",
             credential=credentials.get_credential(),
         )
