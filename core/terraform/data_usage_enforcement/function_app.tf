@@ -20,6 +20,12 @@ resource "azurerm_role_assignment" "assign_identity_reader" {
   principal_id         = azurerm_user_assigned_identity.function_app_data_usage_enforcement_identity.principal_id
 }
 
+resource "azurerm_role_assignment" "cosmos_data_access_data_usage_enforcement" {
+  scope                = var.core_api_principal_id
+  role_definition_name = "Cosmos DB Built-in Data Reader"
+  principal_id         = azurerm_user_assigned_identity.function_app_data_usage_enforcement_identity.principal_id
+}
+
 # Getting IP address for enabling access to
 data "http" "my_ip_address" {
   url = "https://ipecho.net/plain"

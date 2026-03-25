@@ -206,6 +206,7 @@ module "data_usage_enforcement" {
   blob_core_dns_zone_id = module.network.blob_core_dns_zone_id
   tre_core_tags         = local.tre_core_tags
   core_storage_name     = azurerm_storage_account.stg.name
+    core_api_principal_id = azurerm_user_assigned_identity.id.principal_id
 
   depends_on = [
     module.network,

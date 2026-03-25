@@ -95,3 +95,9 @@ resource "azurerm_private_endpoint" "sspe" {
     subresource_names              = ["Sql"]
   }
 }
+
+resource "azurerm_role_assignment" "cosmos_data_access_core_api" {
+  scope                = azurerm_cosmosdb_account.tre_db_account.id
+  role_definition_name = "Cosmos DB Built-in Data Reader"
+  principal_id         = azurerm_user_assigned_identity.id.principal_id
+}
