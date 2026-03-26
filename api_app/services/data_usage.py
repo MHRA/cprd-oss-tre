@@ -319,7 +319,8 @@ class DataUsageService:
             workspaceId = entities[0].get("WorkspaceId")
 
             workspace = await workspace_repo.get_workspace_by_id(workspaceId)
-            is_owner = workspace.user.email == user.email
+            workspace_owner_email = workspace.user.get("email") if isinstance(workspace.user, dict) else workspace.user.email
+            is_owner = workspace_owner_email == user.email
             user_email = (user.email or "").lower()
 
             protocol_members_map = {}
