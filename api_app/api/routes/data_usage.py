@@ -7,7 +7,7 @@ from api.dependencies.database import get_repository
 from models.schemas.container_reation_request import ContainerCreateRequest, EntraGroup, EntraGroupRequest, RoleAssignmentRequest
 from db.repositories.workspaces import WorkspaceRepository
 from resources import strings
-from services.authentication import get_current_workspace_owner_or_tre_user_or_tre_admin
+from services.authentication import get_current_workspace_owner_or_tre_user_or_tre_admin, get_current_tre_user_or_tre_admin
 from models.domain.data_usage import MHRAProtocolItem, MHRAProtocolList, MHRAWorkspaceDataUsage, MHRAStorageAccountLimits, MHRAStorageAccountLimitsItem, StorageAccountLimitsInput, WorkspaceDataUsage
 from models.schemas.data_usage import get_workspace_data_usage_responses, get_storage_account_limits_responses, get_storage_info_responses
 from models.schemas.storage_info_request import StorageInfoRequest
