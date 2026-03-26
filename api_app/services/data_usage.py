@@ -319,8 +319,8 @@ class DataUsageService:
             workspaceId = entities[0].get("WorkspaceId")
 
             workspace = await workspace_repo.get_workspace_by_id(workspaceId)
-            is_owner = workspace.user.email == user.mail
-            user_email = (user.mail or "").lower()
+            is_owner = workspace.user.email == user.email
+            user_email = (user.email or "").lower()
 
             protocol_members_map = {}
 
@@ -384,14 +384,14 @@ class DataUsageService:
             logging.exception(
                 "HTTP error in get_perstudy_items workspaceName=%s user=%s",
                 workspaceName,
-                user.mail
+                user.email
             )
             raise
         except Exception:
             logging.exception(
                 "Unexpected error in get_perstudy_items workspaceName=%s user=%s",
                 workspaceName,
-                user.mail
+                user.email
             )
             raise
 
