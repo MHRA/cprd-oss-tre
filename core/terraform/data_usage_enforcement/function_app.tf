@@ -20,11 +20,15 @@ resource "azurerm_role_assignment" "assign_identity_reader" {
   principal_id         = azurerm_user_assigned_identity.function_app_data_usage_enforcement_identity.principal_id
 }
 
-resource "azurerm_role_assignment" "cosmos_data_access_data_usage_enforcement" {
-  scope                = var.core_api_principal_id
-  role_definition_name = "Cosmos DB Built-in Data Reader"
+resource "azurerm_cosmosdb_sql_role_assignment" "cosmos_data_access_data_usage_enforcement" {
+  resource_group_name = var.resource_group_name
+  account_name        = "cosmos-${var.tre_id}"
+  # This is the ID for "Cosmos DB Built-in Data Reader" built-in role.
+  role_definition_id  = "${var.cosmosdb_account_id}/sqlRoleDefinitions/00000000-0000-0000-0000-000000000001" # GUID
   principal_id         = azurerm_user_assigned_identity.function_app_data_usage_enforcement_identity.principal_id
+  scope                = var.cosmosdb_account_id
 }
+
 
 # Getting IP address for enabling access to
 data "http" "my_ip_address" {
