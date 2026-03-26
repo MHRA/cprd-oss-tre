@@ -317,11 +317,20 @@ class DataUsageService:
 
             # Extract workspaceId once
             workspaceId = entities[0].get("WorkspaceId")
+            if not workspaceId:
+                logging.error("Protocol entity missing WorkspaceId for workspace=%s", workspaceName)
+                raise ValueError(f"Invalid protocol data: missing WorkspaceId for {workspaceName}")
 
             workspace = await workspace_repo.get_workspace_by_id(workspaceId)
+            if not workspace:
+                logging.error("Workspace not found: workspaceId=%s", workspaceId)
+                raise ValueError(f"Workspace not found: {workspaceId}")
+
+            # Normalize email comparison (case-insensitive)
             workspace_owner_email = workspace.user.get("email") if isinstance(workspace.user, dict) else workspace.user.email
-            is_owner = workspace_owner_email == user.email
+            workspace_owner_email = (workspace_owner_email or "").lower()
             user_email = (user.email or "").lower()
+            is_owner = workspace_owner_email == user_email
 
             protocol_members_map = {}
 
@@ -334,19 +343,26 @@ class DataUsageService:
                     if pid:
                         protocol_ids.add(pid)
 
-                async def fetch_members(protocol_id):
-                    members = await self.get_group_members(protocol_id, workspaceId)
-                    return protocol_id, {
-                        (m.get("mail") or "").lower()
-                        for m in members
-                    }
+                if protocol_ids:
+                    async def fetch_members(protocol_id):
+                        members = await self.get_group_members(protocol_id, workspaceId)
+                        return protocol_id, {
+                            (m.get("mail") or "").lower()
+                            for m in members
+                        }
 
-                results = await asyncio.gather(
-                    *[fetch_members(pid) for pid in protocol_ids]
-                )
+                    results = await asyncio.gather(
+                        *[fetch_members(pid) for pid in protocol_ids],
+                        return_exceptions=True
+                    )
 
-                protocol_members_map = dict(results)
-
+                    # Handle exceptions in gather results
+                    for result in results:
+                        if isinstance(result, Exception):
+                            logging.warning("Error fetching group members: %s", str(result))
+                        else:
+                            protocol_id, members = result
+                            protocol_members_map[protocol_id] = members
 
             protocol_items = []
 
@@ -356,6 +372,7 @@ class DataUsageService:
                 # Authorization check
                 if not is_owner:
                     if user_email not in protocol_members_map.get(protocol_id, set()):
+                        logging.debug("User %s not authorized for protocol %s", user_email, protocol_id)
                         continue
 
                 storage_limits = entity.get("StorageLimits", 0)
@@ -379,20 +396,30 @@ class DataUsageService:
                     )
                 )
 
+            logging.debug("Retrieved %d protocol items for workspace=%s user=%s", len(protocol_items), workspaceName, user_email)
             return MHRAProtocolList(protocol_items=protocol_items)
 
-        except HttpResponseError:
+        except HttpResponseError as e:
             logging.exception(
                 "HTTP error in get_perstudy_items workspaceName=%s user=%s",
                 workspaceName,
                 user.email
             )
             raise
-        except Exception:
+        except ValueError as e:
             logging.exception(
-                "Unexpected error in get_perstudy_items workspaceName=%s user=%s",
+                "Invalid data in get_perstudy_items workspaceName=%s user=%s: %s",
                 workspaceName,
-                user.email
+                user.email,
+                str(e)
+            )
+            raise
+        except Exception as e:
+            logging.exception(
+                "Unexpected error in get_perstudy_items workspaceName=%s user=%s: %s",
+                workspaceName,
+                user.email,
+                str(e)
             )
             raise
 
@@ -582,63 +609,72 @@ class DataUsageService:
 
     async def get_group_members(self, protocolId: str, workspaceId: str) -> list:
 
-        tenant_id = config.AAD_TENANT_ID
-        key_vault_name: str = constants.CORE_KEYVAULT_NAME.format(config.TRE_ID)
+        try:
 
-        client_id: str = await self._fetch_key_valut(
-            'ssbs-management-app-registration-client-id',
-            key_vault_name
-        )
+            tenant_id = config.AAD_TENANT_ID
+            key_vault_name: str = constants.CORE_KEYVAULT_NAME.format(config.TRE_ID)
 
-        client_secret: str = await self._fetch_key_valut(
-            'ssbs-management-app-registration-client-secret',
-            key_vault_name
-        )
+            client_id: str = await self._fetch_key_valut(
+                'ssbs-management-app-registration-client-id',
+                key_vault_name
+            )
 
-        credential = ClientSecretCredential(
-            tenant_id=tenant_id,
-            client_id=client_id,
-            client_secret=client_secret
-        )
+            client_secret: str = await self._fetch_key_valut(
+                'ssbs-management-app-registration-client-secret',
+                key_vault_name
+            )
 
-        client = GraphServiceClient(credentials=credential)
+            credential = ClientSecretCredential(
+                tenant_id=tenant_id,
+                client_id=client_id,
+                client_secret=client_secret
+            )
 
-        entra_group_name: str = constants.PROTOCOL_CONTAINER_ASSINED_USERS_ENTRA_GROUP.format(config.TRE_ID, workspaceId[-4:], protocolId)
+            client = GraphServiceClient(credentials=credential)
 
+            entra_group_name: str = constants.PROTOCOL_CONTAINER_ASSINED_USERS_ENTRA_GROUP.format(config.TRE_ID, workspaceId[-4:], protocolId)
 
-        groups = await client.groups.get(
-            query_parameters={
-                "filter": f"displayName eq '{entra_group_name}'"
-            }
-        )
+            # Query groups by displayName
+            groups = await client.groups.get_as_groups_get_response(
+                filter=f"displayName eq '{entra_group_name}'"
+            )
 
-        if not groups.value:
-            return []
+            if not groups or not groups.value:
+                logging.debug("No Entra group found for protocolId=%s, group_name=%s", protocolId, entra_group_name)
+                return []
 
-        group_id = groups.value[0].id
+            group_id = groups.value[0].id
+            logging.debug("Found Entra group %s for protocolId=%s", group_id, protocolId)
 
+            response = await client.groups.by_group_id(group_id).members.graph_user.get()
 
-        response = await client.groups.by_group_id(group_id).members.graph_user.get()
+            members_list = []
 
-        members_list = []
+            while response and response.value:
+                for user in response.value:
+                    # Only include users with valid mail addresses
+                    user_mail = user.mail if hasattr(user, 'mail') else None
+                    if user_mail:
+                        members_list.append({
+                            "id": user.id,
+                            "displayName": user.display_name,
+                            "userPrincipalName": user.user_principal_name,
+                            "mail": user_mail
+                        })
 
-        while response:
-            for user in response.value:
-                members_list.append({
-                    "id": user.id,
-                    "displayName": user.display_name,
-                    "userPrincipalName": user.user_principal_name,
-                    "mail": user.mail
-                })
+                if response.odata_next_link:
+                    response = await client.groups.by_group_id(group_id).members.with_url(
+                        response.odata_next_link
+                    ).graph_user.get()
+                else:
+                    break
 
-            if response.odata_next_link:
-                response = await client.groups.by_group_id(group_id).members.with_url(
-                    response.odata_next_link
-                ).graph_user.get()
-            else:
-                break
+            logging.debug("Retrieved %d members for protocolId=%s", len(members_list), protocolId)
+            return members_list
 
-        return members_list
+        except Exception as e:
+            logging.error("Error retrieving group members for protocolId=%s, workspaceId=%s: %s", protocolId, workspaceId, str(e))
+            raise
 
 @lru_cache(maxsize=None)
 
