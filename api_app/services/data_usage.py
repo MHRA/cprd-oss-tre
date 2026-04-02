@@ -3,6 +3,7 @@ import json
 import logging, math
 import uuid
 import asyncio
+from typing import Any, Dict, List, Optional
 
 from db.repositories.workspaces import WorkspaceRepository
 from models.schemas.container_reation_request import ContainerCreateRequest
@@ -18,6 +19,7 @@ from azure.keyvault.secrets import SecretClient
 from azure.servicebus import ServiceBusMessage
 from azure.core.exceptions import HttpResponseError
 from msgraph import GraphServiceClient
+from msgraph.generated.groups.groups_request_builder import GroupsRequestBuilder
 from azure.identity import ClientSecretCredential
 from models.domain.authentication import User
 
@@ -29,6 +31,7 @@ class DataUsageService:
     client: TableServiceClient
     RATE_LIMIT_RETRY_AFTER_HEADER_KEY: str = "x-ms-ratelimit-microsoft.costmanagement-entity-retry-after"
     SERVICE_UNAVAILABLE_RETRY_AFTER_HEADER_KEY: str = "Retry-After"
+    MAX_PAGINATION_ITERATIONS: int = 100  # Prevent runaway pagination loops
 
     def __init__(self) -> None:
         self.scope = "/subscriptions/{}".format(config.SUBSCRIPTION_ID)
@@ -40,6 +43,9 @@ class DataUsageService:
             credential=credentials.get_credential(),
             headers={"ClientType": config.CLIENT_TYPE_CUSTOM_HEADER}
         )
+        # Cache for Graph client to avoid recreating on each call
+        self._graph_client: Optional[GraphServiceClient] = None
+        self._graph_credentials: Optional[ClientSecretCredential] = None
 
     def _get_latest_entity_by_timestamp(self, entities):
         latest = None
@@ -531,8 +537,8 @@ class DataUsageService:
             tre_id = config.TRE_ID
             workspace = constants.WORKSPACE_RESOURCE_GROUP_NAME.format(tre_id, workspaceId[-4:])
             table_client = self.client.get_table_client(table_name=container_perstudy_table)
-            key_vault_name = constants.WS_KEYVAULT_NAME.format(tre_id,workspaceId[-4:])
-            storageLimit = await self._fetch_key_valut("ssbs-storage-limits",key_vault_name)
+            key_vault_name = constants.WS_KEYVAULT_NAME.format(tre_id, workspaceId[-4:])
+            storageLimit = await self._fetch_key_vault("ssbs-storage-limits", key_vault_name)
 
             new_entity = {
                    "PartitionKey": "None",
@@ -600,80 +606,151 @@ class DataUsageService:
                 size_tb = size_gb / 1024
                 return f"{size_tb:.2f}TB"
 
-    async def _fetch_key_valut(self, secret_name:str, key_vault_name:str) -> str:
-            key_vault_url = f"https://{key_vault_name}.vault.azure.net/"
-            credential = credentials.get_credential()
-            client = SecretClient(vault_url=key_vault_url, credential=credential)
-            retrieved_secret = client.get_secret(secret_name)
-            return retrieved_secret.value
+    async def _fetch_key_vault(self, secret_name: str, key_vault_name: str) -> str:
 
-    async def get_group_members(self, protocolId: str, workspaceId: str) -> list:
+        key_vault_url = f"https://{key_vault_name}.vault.azure.net/"
+        credential = credentials.get_credential()
+        client = SecretClient(vault_url=key_vault_url, credential=credential)
+        retrieved_secret = client.get_secret(secret_name)
+        return retrieved_secret.value
+
+    async def _get_graph_client(self) -> GraphServiceClient:
+
+        if self._graph_client is not None and self._graph_credentials is not None:
+            return self._graph_client
+
+        tenant_id = config.AAD_TENANT_ID
+        key_vault_name: str = constants.CORE_KEYVAULT_NAME.format(config.TRE_ID)
 
         try:
-
-            tenant_id = config.AAD_TENANT_ID
-            key_vault_name: str = constants.CORE_KEYVAULT_NAME.format(config.TRE_ID)
-
-            client_id: str = await self._fetch_key_valut(
+            client_id: str = await self._fetch_key_vault(
                 'ssbs-management-app-registration-client-id',
                 key_vault_name
             )
 
-            client_secret: str = await self._fetch_key_valut(
+            client_secret: str = await self._fetch_key_vault(
                 'ssbs-management-app-registration-client-secret',
                 key_vault_name
             )
+        except Exception as e:
+            logging.error("Failed to retrieve Graph credentials from Key Vault: %s", str(e))
+            raise
 
-            credential = ClientSecretCredential(
-                tenant_id=tenant_id,
-                client_id=client_id,
-                client_secret=client_secret
+        self._graph_credentials = ClientSecretCredential(
+            tenant_id=tenant_id,
+            client_id=client_id,
+            client_secret=client_secret
+        )
+        self._graph_client = GraphServiceClient(credentials=self._graph_credentials)
+        return self._graph_client
+
+    async def get_group_members(self, protocolId: str, workspaceId: str) -> List[Dict[str, Any]]:
+
+        try:
+            client = await self._get_graph_client()
+            entra_group_name: str = constants.PROTOCOL_CONTAINER_ASSINED_USERS_ENTRA_GROUP.format(
+                config.TRE_ID, workspaceId[-4:], protocolId
             )
-
-            client = GraphServiceClient(credentials=credential)
-
-            entra_group_name: str = constants.PROTOCOL_CONTAINER_ASSINED_USERS_ENTRA_GROUP.format(config.TRE_ID, workspaceId[-4:], protocolId)
 
             # Query groups by displayName
-            groups = await client.groups.get_as_groups_get_response(
-                filter=f"displayName eq '{entra_group_name}'"
-            )
+            try:
+                query_params = GroupsRequestBuilder.GroupsRequestBuilderGetQueryParameters(
+                    filter=f"displayName eq '{entra_group_name}'"
+                )
+
+                request_config = GroupsRequestBuilder.GroupsRequestBuilderGetRequestConfiguration(
+                    query_parameters=query_params,
+                    headers={"ConsistencyLevel": "eventual"}
+                )
+
+                groups = await client.groups.get(request_configuration=request_config)
+            except Exception as e:
+                logging.warning(
+                    "Failed to retrieve Entra group for protocolId=%s, group_name=%s: %s",
+                    protocolId, entra_group_name, str(e)
+                )
+                return []
 
             if not groups or not groups.value:
-                logging.debug("No Entra group found for protocolId=%s, group_name=%s", protocolId, entra_group_name)
+                logging.debug(
+                    "No Entra group found for protocolId=%s, group_name=%s",
+                    protocolId, entra_group_name
+                )
                 return []
 
             group_id = groups.value[0].id
+            if not group_id:
+                logging.warning(
+                    "Entra group has no ID for protocolId=%s, group_name=%s",
+                    protocolId, entra_group_name
+                )
+                return []
+
             logging.debug("Found Entra group %s for protocolId=%s", group_id, protocolId)
 
-            response = await client.groups.by_group_id(group_id).members.graph_user.get()
-
-            members_list = []
+            # Get direct members of the group (not transitive/nested)
+            response = await client.groups.by_group_id(group_id).members.get()
+            members_list: List[Dict[str, Any]] = []
+            pagination_count = 0
 
             while response and response.value:
+                pagination_count += 1
+                if pagination_count > self.MAX_PAGINATION_ITERATIONS:
+                    logging.warning(
+                        "Pagination limit exceeded for protocolId=%s, stopping at %d iterations",
+                        protocolId, pagination_count - 1
+                    )
+                    break
+
                 for user in response.value:
                     # Only include users with valid mail addresses
-                    user_mail = user.mail if hasattr(user, 'mail') else None
-                    if user_mail:
-                        members_list.append({
-                            "id": user.id,
-                            "displayName": user.display_name,
-                            "userPrincipalName": user.user_principal_name,
-                            "mail": user_mail
-                        })
+                    user_mail = getattr(user, 'mail', None)
+                    if not (user_mail and isinstance(user_mail, str) and user_mail.strip()):
+                        continue
+
+                    user_id = getattr(user, 'id', None)
+                    display_name = getattr(user, 'display_name', '')
+                    user_principal_name = getattr(user, 'user_principal_name', '')
+
+                    if not user_id:
+                        logging.warning(
+                            "User in group %s has no ID, skipping. Mail: %s",
+                            group_id, user_mail
+                        )
+                        continue
+
+                    members_list.append({
+                        "id": user_id,
+                        "displayName": display_name,
+                        "userPrincipalName": user_principal_name,
+                        "mail": user_mail
+                    })
 
                 if response.odata_next_link:
-                    response = await client.groups.by_group_id(group_id).members.with_url(
-                        response.odata_next_link
-                    ).graph_user.get()
+                    try:
+                        response = await client.groups.by_group_id(group_id).members.with_url(
+                            response.odata_next_link
+                        ).get()
+                    except Exception as e:
+                        logging.warning(
+                            "Error fetching next page of members for protocolId=%s: %s",
+                            protocolId, str(e)
+                        )
+                        break
                 else:
                     break
 
-            logging.debug("Retrieved %d members for protocolId=%s", len(members_list), protocolId)
+            logging.debug(
+                "Retrieved %d members for protocolId=%s (pagination_iterations=%d)",
+                len(members_list), protocolId, pagination_count
+            )
             return members_list
 
         except Exception as e:
-            logging.error("Error retrieving group members for protocolId=%s, workspaceId=%s: %s", protocolId, workspaceId, str(e))
+            logging.error(
+                "Error retrieving group members for protocolId=%s, workspaceId=%s: %s",
+                protocolId, workspaceId, str(e)
+            )
             raise
 
 @lru_cache(maxsize=None)
