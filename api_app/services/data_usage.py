@@ -660,7 +660,7 @@ class DataUsageService:
 
                 request_config = GroupsRequestBuilder.GroupsRequestBuilderGetRequestConfiguration(
                     query_parameters=query_params,
-                    headers={"ConsistencyLevel": "eventual"}
+
                 )
 
                 groups = await client.groups.get(request_configuration=request_config)
