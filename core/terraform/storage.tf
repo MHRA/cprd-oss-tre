@@ -11,7 +11,7 @@ resource "azurerm_storage_account" "stg" {
 
 resource "azurerm_storage_share" "storage_state_path" {
   name                 = "cnab-state"
-  storage_account_name = azurerm_storage_account.stg.name
+  storage_account_id   = azurerm_storage_account.stg.id
   quota                = 50
 }
 

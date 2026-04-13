@@ -22,7 +22,7 @@ resource "azurerm_storage_share_file" "mlflow_config_linux" {
 
 resource "azurerm_storage_container" "mlflow_artefacts" {
   name                  = local.mlflow_artefacts_container_name
-  storage_account_name  = local.storage_name
+  storage_account_id    = data.azurerm_storage_account.mlflow.id
   container_access_type = "private"
 }
 

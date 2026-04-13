@@ -164,7 +164,7 @@ resource "azurerm_key_vault_secret" "gitea_password" {
 
 resource "azurerm_storage_share" "gitea" {
   name                 = "gitea-data"
-  storage_account_name = data.azurerm_storage_account.gitea.name
+  storage_account_id   = data.azurerm_storage_account.gitea.id
   quota                = var.gitea_storage_limit
 }
 
