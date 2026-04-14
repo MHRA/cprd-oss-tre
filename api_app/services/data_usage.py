@@ -659,8 +659,7 @@ class DataUsageService:
                 )
 
                 request_config = GroupsRequestBuilder.GroupsRequestBuilderGetRequestConfiguration(
-                    query_parameters=query_params,
-
+                    query_parameters=query_params
                 )
 
                 groups = await client.groups.get(request_configuration=request_config)
@@ -702,30 +701,34 @@ class DataUsageService:
                     )
                     break
 
-                for user in response.value:
-                    # Only include users with valid mail addresses
-                    user_mail = getattr(user, 'mail', None)
-                    if not (user_mail and isinstance(user_mail, str) and user_mail.strip()):
+                for member in response.value:
+
+                    if member.odata_type != "#microsoft.graph.user":
                         continue
 
-                    user_id = getattr(user, 'id', None)
-                    display_name = getattr(user, 'display_name', '')
-                    user_principal_name = getattr(user, 'user_principal_name', '')
-
-                    if not user_id:
+                    # Fetch full user object
+                    try:
+                        user = await client.users.by_user_id(member.id).get()
+                    except Exception as e:
                         logging.warning(
-                            "User in group %s has no ID, skipping. Mail: %s",
-                            group_id, user_mail
+                            "Failed to fetch user details for id=%s in group %s: %s",
+                            member.id, group_id, str(e)
                         )
                         continue
 
+                    # Resolve email safely
+                    user_mail = user.mail or user.user_principal_name
+                    if not user_mail or not user_mail.strip():
+                        continue
+
                     members_list.append({
-                        "id": user_id,
-                        "displayName": display_name,
-                        "userPrincipalName": user_principal_name,
+                        "id": user.id,
+                        "displayName": user.display_name or "",
+                        "userPrincipalName": user.user_principal_name or "",
                         "mail": user_mail
                     })
 
+                # ---- Pagination ----
                 if response.odata_next_link:
                     try:
                         response = await client.groups.by_group_id(group_id).members.with_url(
