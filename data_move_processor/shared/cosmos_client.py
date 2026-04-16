@@ -10,6 +10,8 @@ from shared.config import (
     COSMOS_ENDPOINT,
     COSMOS_DB,
     COSMOS_CONTAINER,
+    A_MSL_WORKSPACE,
+    E_MSL_WORKSPACE,
     get_tre_id,
 )
 
@@ -106,3 +108,27 @@ def delete_transaction(item_id: str, partition_key: str):
         item=item_id,
         partition_key=partition_key,
     )
+
+
+def get_workspace_type(workspace_id: str):
+    query = f"SELECT * FROM {COSMOS_CONTAINER} r WHERE r.id = @workspaceId"
+    parameters = [ dict(name='@workspaceId', value=workspace_id) ]
+    results = container.query_items(
+        query=query,
+        parameters=parameters
+    )
+
+    for item in results:
+        if item['templateName'] == A_MSL_WORKSPACE:
+            suffix = "a"
+        elif item['templateName'] == E_MSL_WORKSPACE:
+            suffix = "e"
+        else:
+            logging.error(
+               "Unable do define Workspace Type for workspace %s with workspace type %s",
+               workspace_id,
+               item['templateName']
+            )
+            raise
+
+    return suffix

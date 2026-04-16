@@ -1,5 +1,3 @@
-
-
 import os
 from api_app.services import logging
 
@@ -12,11 +10,15 @@ COSMOS_CONTAINER = "DataMoveTransactions"
 QUEUE_NAME = "datamove-events"
 
 # Container naming patterns
-STORAGE_ACCOUNT_NAME_WORKSPACE_RESOURCE_GROUP_SSBS = "ssbsws{}"
+STORAGE_ACCOUNT_NAME_WORKSPACE_RESOURCE_GROUP_SSBS = "ssbsws{}{}"
 WORKSPACE_RESOURCE_GROUP_NAME = "rg-{}-ws-{}"
 
 SERVICE_BUS_FULLY_QUALIFIED_NAMESPACE: str = os.getenv("SERVICE_BUS_FULLY_QUALIFIED_NAMESPACE", "")
 SERVICE_BUS_DATA_MOVE_QUEUE_NAME: str = os.getenv("SERVICE_BUS_DATA_MOVE_QUEUE_NAME", "")
+
+A_MSL_WORKSPACE = "tre-workspace-a-msl"
+E_MSL_WORKSPACE = "tre-workspace-e-msl"
+EMPTY_FILE_NAME = ".emptyFile"
 
 def get_tre_id():
     try:
