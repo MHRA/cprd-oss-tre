@@ -292,3 +292,7 @@ A_MSL_WORKSPACE = "tre-workspace-a-msl"
 E_MSL_WORKSPACE = "tre-workspace-e-msl"
 COSMOS_DATABASE_NAME = "AzureTRE"
 RESOURCES_CONTAINER_NAME = "Resources"
+
+
+API_CREATE_DATA_MOVE_REQUEST = "Create a data move request"
+API_LIST_DATA_MOVE_REQUESTS = "Get all data move requests for a workspace"

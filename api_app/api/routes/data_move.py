@@ -1,0 +1,217 @@
+import datetime
+import logging
+from typing import Optional
+
+from azure.servicebus import ServiceBusClient, ServiceBusMessage
+from fastapi import APIRouter, HTTPException, status as status_code, Depends
+from jsonschema import ValidationError
+from pydantic import json
+from starlette import status
+
+from api.dependencies.database import get_repository
+from services import data_move
+from core import credentials
+from models.domain.authentication import User
+from models.domain.data_move_transactions import DataMoveTransactions
+from models.domain.workspace import Workspace
+from db.repositories.data_move import DataMoveRepository
+from models.schemas.data_move_transactions import (
+    DataMoveTransactionRequest,
+    DataMoveTransactionResponse,
+    DataMoveTransactionResponseList,
+)
+from resources import strings
+from core import config
+
+from api.dependencies.workspaces import (
+    get_workspace_by_id_from_path,
+    get_deployed_workspace_by_id_from_path,
+)
+from services.authentication import (
+    get_current_workspace_owner_or_researcher_user,
+    get_current_tre_user_or_tre_admin,
+)
+
+
+datamove_workspace_router = APIRouter(
+    dependencies=[Depends(get_current_workspace_owner_or_researcher_user)]
+)
+
+datamove_core_router = APIRouter(
+    dependencies=[Depends(get_current_tre_user_or_tre_admin)]
+)
+
+
+# -------------------------
+# CREATE REQUEST
+# -------------------------
+@datamove_workspace_router.post(
+    "/workspaces/{workspace_id}/requests",
+    status_code=status_code.HTTP_201_CREATED,
+    response_model=DataMoveTransactionResponse,
+    name=strings.API_CREATE_DATA_MOVE_REQUEST,
+    dependencies=[
+        Depends(get_current_workspace_owner_or_researcher_user),
+        Depends(get_workspace_by_id_from_path),
+    ],
+)
+async def create_draft_request(
+    datamove_request_input: DataMoveTransactionRequest,
+    user=Depends(get_current_workspace_owner_or_researcher_user),
+    datamove_request_repo=Depends(get_repository(DataMoveRepository)),
+    workspace=Depends(get_deployed_workspace_by_id_from_path),
+) -> DataMoveTransactionResponse:
+
+    try:
+        datamove_request: DataMoveTransactions = datamove_request_repo.create_datamove_request_item(
+                datamove_request_input=datamove_request_input,
+                workspace_id=workspace.id,
+                user=user,
+            )
+
+        total_size: float = await data_move.get_folder_size(workspace.id, datamove_request_input.emasl_protocol_id)
+        datamove_request.file_size = total_size
+        await save_and_publish_event_datamove_request(
+            datamove_request=datamove_request,
+            datamove_request_repo=datamove_request_repo,
+            user=user,
+            workspace=workspace,
+        )
+
+        return DataMoveTransactionResponse(
+            transaction_id=datamove_request.id,
+            workspace_id=datamove_request.workspaceId,
+            protocol_id=datamove_request.protocol_id,
+            file_size=datamove_request.file_size,
+            date_time=datamove_request.date_time,
+            status=datamove_request.status,
+        )
+
+    except (ValidationError, ValueError) as e:
+        logging.exception("Failed creating data move request")
+        raise HTTPException(
+            status_code=status_code.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )
+
+
+# -------------------------
+# GET ALL REQUESTS
+# -------------------------
+@datamove_workspace_router.get(
+    "/workspaces/{workspace_id}/history",
+    status_code=status_code.HTTP_200_OK,
+    response_model=DataMoveTransactionResponseList,
+    name=strings.API_LIST_DATA_MOVE_REQUESTS,
+    dependencies=[
+        Depends(get_current_workspace_owner_or_researcher_user),
+        Depends(get_workspace_by_id_from_path),
+    ],
+)
+async def get_all_datamove_requests_by_workspace(
+    datamove_request_repo=Depends(get_repository(DataMoveRepository)),
+    workspace=Depends(get_deployed_workspace_by_id_from_path),
+) -> DataMoveTransactionResponseList:
+
+    try:
+        datamove_requests = await datamove_request_repo.get_datamove_requests(
+            workspace_id=workspace.id
+        )
+
+        return DataMoveTransactionResponseList(
+            dataMoveTransactions=[
+                DataMoveTransactionResponse(
+                    transaction_id=req.id,
+                    workspace_id=req.workspaceId,
+                    protocol_id=req.protocol_id,
+                    file_size=req.file_size,
+                    date_time=req.date_time,
+                    status=req.status,
+                )
+                for req in datamove_requests
+            ]
+        )
+
+    except (ValidationError, ValueError) as e:
+        logging.exception(
+            "Failed retrieving all the data move requests for a workspace"
+        )
+        raise HTTPException(
+            status_code=status_code.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )
+
+
+# -------------------------
+# SAVE + PUBLISH EVENT
+# -------------------------
+async def save_and_publish_event_datamove_request(
+    datamove_request: DataMoveTransactions,
+    datamove_request_repo: DataMoveRepository,
+    user: User,
+    workspace: Workspace,
+):
+    try:
+        logging.debug(f"Saving data move request item: {datamove_request.id}")
+
+        datamove_request.updatedBy = user
+        datamove_request.updatedWhen = get_timestamp()
+
+        await datamove_request_repo.save_item(datamove_request)
+
+    except Exception:
+        logging.exception(
+            f"Failed saving data move request {datamove_request}"
+        )
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=strings.STATE_STORE_ENDPOINT_NOT_RESPONDING,
+        )
+
+    try:
+        logging.debug(
+            f"Sending status changed event for data move request item: {datamove_request.id}"
+        )
+
+        await send_status_changed_event(datamove_request)
+
+    except Exception:
+        logging.exception("Failed sending status_changed message")
+
+        # rollback (optional strategy — consider marking failed instead)
+        await datamove_request_repo.delete_item(datamove_request.id)
+
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=strings.EVENT_GRID_GENERAL_ERROR_MESSAGE,
+        )
+
+
+# -------------------------
+# SERVICE BUS EVENT
+# -------------------------
+async def send_status_changed_event(datamove_request: DataMoveTransactions):
+    message = ServiceBusMessage(
+        body=datamove_request.json(),
+        correlation_id=str(datamove_request.id),
+        session_id=str(datamove_request.workspaceId),
+    )
+
+    async with credentials.get_credential_async() as credential:
+        service_bus_client = ServiceBusClient(
+            config.SERVICE_BUS_FULLY_QUALIFIED_NAMESPACE,
+            credential,
+        )
+
+        async with service_bus_client:
+            sender = service_bus_client.get_queue_sender(
+                queue_name=config.SERVICE_BUS_DATA_MOVE_QUEUE_NAME
+            )
+
+            async with sender:
+                await sender.send_messages(message)
+
+
+
+def get_timestamp() -> float:
+    return datetime.datetime.utcnow().timestamp()
