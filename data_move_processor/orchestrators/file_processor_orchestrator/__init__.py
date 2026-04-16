@@ -4,6 +4,7 @@ def orchestrator(context: df.DurableOrchestrationContext):
 
     data = context.get_input()
     file = data["file"]
+    req = data["req"]
     tid = data["transaction_id"]
 
     retry = 0
@@ -21,6 +22,7 @@ def orchestrator(context: df.DurableOrchestrationContext):
         )
 
         if ok:
+            yield context.call_activity("delete_source_files", {"file": file, "req": req})
             return True
 
         retry += 1

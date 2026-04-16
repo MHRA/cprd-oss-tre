@@ -1,6 +1,7 @@
 import azure.functions as func
 import azure.durable_functions as df
 import json
+import os
 
 # Import orchestrators
 from orchestrators.data_move_orchestrator import main as data_move_orchestrator
@@ -20,7 +21,13 @@ from activities.release_lock import release_lock
 from activities.send_notification import send_notification
 from activities.send_status_event import send_status_event
 
-@func.ServiceBusQueueTrigger(arg_name="msg", queue_name="datamove-events", connection="SERVICE_BUS_CONN_STR")
+# Import config
+from shared.config import SERVICE_BUS_DATA_MOVE_QUEUE_NAME
+
+QUEUE_NAME = SERVICE_BUS_DATA_MOVE_QUEUE_NAME or "datamove-events"
+SERVICE_BUS_CONNECTION = os.environ.get("SERVICE_BUS_CONNECTION_STRING_NAME", "SERVICE_BUS_CONN_STR")
+
+@func.ServiceBusQueueTrigger(arg_name="msg", queue_name=QUEUE_NAME, connection=SERVICE_BUS_CONNECTION)
 @df.DurableOrchestrationClient.input(starter)
 async def data_move_trigger(msg: func.ServiceBusMessage, starter: str):
 

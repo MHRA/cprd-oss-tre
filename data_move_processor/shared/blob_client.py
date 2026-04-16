@@ -1,8 +1,14 @@
+from datetime import timedelta
+import datetime
+import json
 import logging
 import os
 
 from azure.identity import DefaultAzureCredential
-from azure.storage.blob import BlobServiceClient, BlobClient, BlobLeaseClient
+from azure.storage.blob import ContainerSasPermissions, generate_container_sas, BlobServiceClient, BlobClient
+from azure.storage.blob._container_client import ContainerClient
+from azure.storage.blob._models import BlobProperties
+from azure.storage.blob._shared.models import UserDelegationKey
 from api_app.core import credentials
 from shared.config import STORAGE_ACCOUNT_NAME_WORKSPACE_RESOURCE_GROUP_SSBS
 
@@ -26,35 +32,91 @@ def get_blob_service_client(workspace_id: str) -> BlobServiceClient:
     return blob_service_client
 
 def list_blobs(workspace_id: str, container_name: str, prefix=None):
-    blob_service_client = get_blob_service_client(workspace_id)
-    container_client = blob_service_client.get_container_client(container_name)
+    blob_service_client: BlobServiceClient = get_blob_service_client(workspace_id)
+    container_client: ContainerClient = blob_service_client.get_container_client(container_name)
     return [blob.name for blob in container_client.list_blobs(name_starts_with=prefix)]
 
-def copy_blob(workspace_id: str, source_container: str, source_blob: str, dest_container: str, dest_blob: str):
-    blob_service_client = get_blob_service_client(workspace_id)
-    source_client = blob_service_client.get_blob_client(source_container, source_blob)
-    dest_client = blob_service_client.get_blob_client(dest_container, dest_blob)
-    dest_client.start_copy_from_url(source_client.url)
-    return dest_client.get_blob_properties()
+
+
+def copy_blob(workspace_id: str,source_container: str, source_blob: str,dest_container: str, dest_blob: str):
+
+    source_blob_service_client: BlobServiceClient = get_blob_service_client(workspace_id)
+    source_blob_client: BlobClient = source_blob_service_client.get_blob_client(
+        container=source_container,
+        blob=source_blob,
+    )
+
+    start_time = datetime.utcnow() - timedelta(minutes=15)
+    expiry_time = datetime.utcnow() + timedelta(hours=1)
+
+    user_delegation_key: UserDelegationKey = source_blob_service_client.get_user_delegation_key(
+        key_start_time=start_time,
+        key_expiry_time=expiry_time,
+    )
+
+    sas_token: str = generate_container_sas(
+        account_name=source_blob_service_client.account_name,
+        container_name=source_container,
+        user_delegation_key=user_delegation_key,
+        permission=ContainerSasPermissions(read=True),
+        start=start_time,
+        expiry=expiry_time,
+    )
+
+    source_url_with_sas: str = f"{source_blob_client.url}?{sas_token}"
+
+    # ------------------------------------------------------------------
+    # Preserve and update metadata
+    # ------------------------------------------------------------------
+    properties: BlobProperties = source_blob_client.get_blob_properties()
+    metadata = properties.metadata or {}
+
+    copied_from = json.loads(metadata["copied_from"]) if "copied_from" in metadata else []
+    metadata["copied_from"] = json.dumps(copied_from + [source_blob_client.url])
+
+
+    dest_blob_service_client: BlobServiceClient = get_blob_service_client(workspace_id)
+    dest_blob_client: BlobClient = dest_blob_service_client.get_blob_client(
+        container=dest_container,
+        blob=dest_blob,
+    )
+
+
+    copy_props = dest_blob_client.start_copy_from_url(
+        source_url_with_sas,
+        metadata=metadata,
+    )
+
+    try:
+        logging.info(
+            "Copy started: copy_id=%s, copy_status=%s",
+            copy_props["copy_id"],
+            copy_props["copy_status"],
+        )
+    except KeyError as e:
+        logging.error("Unable to read copy operation properties: %s", e)
+
+    return dest_blob_client.get_blob_properties()
+
 
 def delete_blob(workspace_id: str, container_name: str, blob_name: str):
-    blob_service_client = get_blob_service_client(workspace_id)
-    blob_client = blob_service_client.get_blob_client(container_name, blob_name)
+    blob_service_client: BlobServiceClient = get_blob_service_client(workspace_id)
+    blob_client: BlobClient = blob_service_client.get_blob_client(container_name, blob_name)
     blob_client.delete_blob()
 
 def get_blob_properties(workspace_id: str, container_name: str, blob_name: str):
-    blob_service_client = get_blob_service_client(workspace_id)
-    blob_client = blob_service_client.get_blob_client(container_name, blob_name)
+    blob_service_client: BlobServiceClient = get_blob_service_client(workspace_id)
+    blob_client: BlobClient = blob_service_client.get_blob_client(container_name, blob_name)
     return blob_client.get_blob_properties()
 
 def check_integrity(workspace_id: str, source_container: str, source_blob: str, dest_container: str, dest_blob: str):
-    source_props = get_blob_properties(workspace_id, source_container, source_blob)
-    dest_props = get_blob_properties(workspace_id, dest_container, dest_blob)
+    source_props: BlobProperties = get_blob_properties(workspace_id, source_container, source_blob)
+    dest_props: BlobProperties = get_blob_properties(workspace_id, dest_container, dest_blob)
     return source_props.size == dest_props.size  # Simple size check, could add hash
 
 def acquire_container_lease(workspace_id: str, container_name: str, lease_id=None):
-    blob_service_client = get_blob_service_client(workspace_id)
-    container_client = blob_service_client.get_container_client(container_name)
+    blob_service_client: BlobServiceClient = get_blob_service_client(workspace_id)
+    container_client: ContainerClient = blob_service_client.get_container_client(container_name)
     lease_client = container_client.get_lease_client(lease_id)
     try:
         lease_client.acquire(lease_duration=60)  # 60 seconds, can be renewed
@@ -63,7 +125,7 @@ def acquire_container_lease(workspace_id: str, container_name: str, lease_id=Non
         return None
 
 def release_container_lease(workspace_id: str, container_name: str, lease_id: str):
-    blob_service_client = get_blob_service_client(workspace_id)
-    container_client = blob_service_client.get_container_client(container_name)
+    blob_service_client: BlobServiceClient = get_blob_service_client(workspace_id)
+    container_client: ContainerClient = blob_service_client.get_container_client(container_name)
     lease_client = container_client.get_lease_client(lease_id)
     lease_client.release()
