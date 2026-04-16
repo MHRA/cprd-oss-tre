@@ -256,6 +256,7 @@ class StudyContainerProvisioningService:
                     request.workspaceId,
                     ctx.group_id,
                     ctx.suffix,
+                    ctx.container_name
                 )
 
                 ctx.role_assignment_id = assignment_id
@@ -463,9 +464,13 @@ class StudyContainerProvisioningService:
     # =====================================================
     # RBAC
     # =====================================================
-    async def _assign_role_to_group(self, workspace_id, group_id,suffix) -> str:
+    async def _assign_role_to_group(self, workspace_id, group_id,suffix, container_name:str) -> str:
         credential = credentials.get_credential()
         subscription_id = config.SUBSCRIPTION_ID
+        rg: str = constants.WORKSPACE_RESOURCE_GROUP_NAME.format(
+            config.TRE_ID, workspace_id[-4:]
+        )
+
 
         storage = await self._get_storage_account(credential, workspace_id)
         role_id = await self._get_role_definition_id(
@@ -478,8 +483,16 @@ class StudyContainerProvisioningService:
 
         assignment_id = str(uuid.uuid4())
 
+        container_scope: str = (
+            f"/subscriptions/{subscription_id}"
+            f"/resourceGroups/{rg}"
+            f"/providers/Microsoft.Storage/storageAccounts/{storage.name}"
+            f"/blobServices/default/containers/{container_name}"
+        )
+
+
         client.role_assignments.create(
-            scope=storage.id,
+            scope=container_scope,
             role_assignment_name=assignment_id,
             parameters={
                 "role_definition_id": (
