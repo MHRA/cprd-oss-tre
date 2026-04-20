@@ -1,5 +1,5 @@
 import asyncio, logging, time, uuid
-from typing import List, Tuple
+from typing import Any, Dict, List, Tuple
 
 from azure.cosmos.aio import CosmosClient
 from azure.mgmt.storage import StorageManagementClient
@@ -47,6 +47,10 @@ class WorkspaceRepository(ResourceRepository):
     @staticmethod
     def esml_workspaces_query_string():
         return f'SELECT * FROM c WHERE c.resourceType ="{ResourceType.Workspace}" AND {IS_NOT_DELETED_CLAUSE} AND c.templateName IN ("tre-workspace-a-msl","tre-workspace-e-msl")'
+
+    @staticmethod
+    def amsl_workspaces_query_string():
+        return f'SELECT * FROM c WHERE c.resourceType = "{ResourceType.Workspace}" AND {IS_NOT_DELETED_CLAUSE} AND c.templateName = "tre-workspace-a-msl" AND c.properties.e_msl_peering_ws_name_suffix = "3c0b"'
 
     def generate_workspace_id(self):
 
@@ -242,5 +246,13 @@ class WorkspaceRepository(ResourceRepository):
         query=self.esml_workspaces_query_string()
         workspaces = await self.query(query=query)
         return parse_obj_as(List[Workspace], workspaces)
+
+    async def get_asml_workspace(self, workspace_id: str) -> Workspace:
+
+        ws_suffix: str = workspace_id[-4:]
+        query: str = f'SELECT * FROM c WHERE c.resourceType = "{ResourceType.Workspace}" AND {IS_NOT_DELETED_CLAUSE} AND c.templateName = "tre-workspace-a-msl" AND c.properties.e_msl_peering_ws_name_suffix = "{ws_suffix}"'
+        workspaces: List[Dict[str, Any]] = await self.query(query=query)
+        return parse_obj_as(Workspace, workspaces[0])
+
 
 

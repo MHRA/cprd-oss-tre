@@ -9,6 +9,7 @@ from pydantic import json
 from starlette import status
 
 from api.dependencies.database import get_repository
+from api_app.db.repositories.workspaces import WorkspaceRepository
 from services import data_move
 from core import credentials
 from models.domain.authentication import User
@@ -59,6 +60,7 @@ async def create_draft_request(
     datamove_request_input: DataMoveTransactionRequest,
     user=Depends(get_current_workspace_owner_or_researcher_user),
     datamove_request_repo=Depends(get_repository(DataMoveRepository)),
+    workspaceRepo=Depends(get_repository(WorkspaceRepository)),
     workspace=Depends(get_deployed_workspace_by_id_from_path),
 ) -> DataMoveTransactionResponse:
 
@@ -68,9 +70,13 @@ async def create_draft_request(
                 workspace_id=workspace.id,
                 user=user,
             )
-
+        workspace_asml = await workspaceRepo.get_asml_workspace(workspace.id)  # validate workspace exists in Cosmos and get peering info for data move
         total_size: float = await data_move.get_folder_size(workspace.id, datamove_request_input.emasl_protocol_id)
         datamove_request.file_size = total_size
+        datamove_request.amsl_workspace_id = workspace_asml.id
+        datamove_request.amsl_protocol_id= datamove_request_input.emasl_protocol_id = (
+                datamove_request_input.emasl_protocol_id[:-1] + "a"
+            )
         await save_and_publish_event_datamove_request(
             datamove_request=datamove_request,
             datamove_request_repo=datamove_request_repo,
