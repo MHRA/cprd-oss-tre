@@ -9,7 +9,6 @@ from orchestrators.file_processor_orchestrator import main as file_processor_orc
 
 # Import activities
 from activities.check_preconditions import check_preconditions
-from activities.create_transaction import create_transaction
 from activities.acquire_lock import acquire_lock
 from activities.snapshot_files import snapshot_files
 from activities.copy_blob import copy_blob
@@ -18,7 +17,6 @@ from activities.update_file_status import log_file_status
 from activities.update_transaction_status import update_transaction_status
 from activities.delete_source_files import delete_source_files
 from activities.release_lock import release_lock
-from activities.send_notification import send_notification
 from activities.send_status_event import send_status_event
 
 # Import config

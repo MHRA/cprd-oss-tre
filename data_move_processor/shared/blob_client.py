@@ -56,12 +56,12 @@ def list_blobs(workspace_id: str, container_name: str, prefix=None):
     # Iterate over returned blobs.
     for blob in source_container_content:
         blob_data_elem = {
-            "WorkspaceName": rg_workspace_name,
-            "WorkspaceId": workspace_id,
-            "SourceContainerName": container_name,
-            "FileName": blob['name'],
-            "FileSize": blob['size']
-        }
+                "WorkspaceName": rg_workspace_name,
+                "WorkspaceId": workspace_id,
+                "SourceContainerName": container_name,
+                "FileName": blob['name'],
+                "FileSize": blob['size']
+            }
 
         if EMPTY_FILE_NAME not in blob['name']:
             source_files_data.append(blob_data_elem)
@@ -146,10 +146,18 @@ def get_blob_properties(workspace_id: str, container_name: str, blob_name: str):
     blob_client: BlobClient = blob_service_client.get_blob_client(container_name, blob_name)
     return blob_client.get_blob_properties()
 
-def check_integrity(workspace_id: str, source_container: str, source_blob: str, dest_container: str, dest_blob: str):
-    source_props: BlobProperties = get_blob_properties(workspace_id, source_container, source_blob)
-    dest_props: BlobProperties = get_blob_properties(workspace_id, dest_container, dest_blob)
-    return source_props.size == dest_props.size  # Simple size check, could add hash
+
+def check_container_integrity(workspace_id: str,source_container: str,amsl_workspace_id: str)-> bool:
+
+    dest_container = (source_container[:-1]+"a")
+    source_blobs = list_blobs(workspace_id, source_container)
+    dest_blobs = list_blobs(amsl_workspace_id, dest_container)
+
+    source_size: int | float = sum(file.FileSize for file in source_blobs) if source_blobs else 0.0
+    dest_size: int | float = sum(file.FileSize for file in dest_blobs) if dest_blobs else 0.0
+
+    return source_size == dest_size
+
 
 def acquire_container_lease(workspace_id: str, container_name: str, lease_id=None):
     blob_service_client: BlobServiceClient = get_blob_service_client(workspace_id)

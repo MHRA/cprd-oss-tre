@@ -1,7 +1,7 @@
 import azure.functions as func
 import azure.durable_functions as df
-from shared.blob_client import list_blobs
 
 @df.activity_trigger(input_name="req")
-def snapshot_files(req: func.InputStream) -> list:
-    return list_blobs(req["workspace_id"], req["source_container"], req.get("prefix"))
+def snapshot_files(req: dict) -> list:
+    # Extract file names from the files array
+    return [f["file_name"] for f in req["files"]]

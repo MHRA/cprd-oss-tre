@@ -10,7 +10,8 @@ def orchestrator(context: df.DurableOrchestrationContext):
         return "FAILED_PRECONDITIONS"
 
     # 2. Transaction creation
-    transaction_id = yield context.call_activity("create_transaction", req)
+    yield context.call_activity("update_transaction_status",
+                                        (req["id"], "STARTED"))
 
     try:
         # 3. Lock
@@ -26,7 +27,7 @@ def orchestrator(context: df.DurableOrchestrationContext):
             context.call_sub_orchestrator(
                 "file_processor_orchestrator",
                 {
-                    "transaction_id": transaction_id,
+                    "transaction_id": req["id"],
                     "file": f,
                     "req": req
                 }
@@ -36,21 +37,34 @@ def orchestrator(context: df.DurableOrchestrationContext):
 
         results = yield context.task_all(tasks)
 
-        success = all(results)
+        success: bool = all(results)
+
+        # 5a. Check integrity for all copied files
+        if success:
+            ok = yield context.call_activity("check_integrity", {"transaction_id": req["id"], "req": req})
+            success = ok
+
+        # 5b. Delete source files after integrity check passes
+        if success:
+            delete_tasks = [
+                context.call_activity("delete_source_files", {"file": f, "req": req})
+                for f in files
+            ]
+            yield context.task_all(delete_tasks)
 
         # 6. Final update + notify
         if success:
             yield context.call_activity("update_transaction_status",
-                                        (transaction_id, "COMPLETED"))
+                                        (req["id"], "COMPLETED"))
 
             yield context.call_activity("send_status_event",
-                                        {"status": "SUCCESS", "transaction": transaction_id})
+                                        {"status": "SUCCESS", "transaction": req["id"]})
         else:
             yield context.call_activity("update_transaction_status",
-                                        (transaction_id, "FAILED"))
+                                        (req["id"], "FAILED"))
 
             yield context.call_activity("send_status_event",
-                                        {"status": "FAILED", "transaction": transaction_id})
+                                        {"status": "FAILED", "transaction": req["id"]})
 
     finally:
         yield context.call_activity("release_lock", (req, lease_id))

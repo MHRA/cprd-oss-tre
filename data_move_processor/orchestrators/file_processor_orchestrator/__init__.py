@@ -9,24 +9,26 @@ def orchestrator(context: df.DurableOrchestrationContext):
 
     retry = 0
     max_retry = 3
+    ok = False
 
     while retry < max_retry:
-
-        yield context.call_activity("copy_blob", {"file": file, "req": req})
-
-        ok = yield context.call_activity("check_integrity", {"file": file, "req": req})
-
-        yield context.call_activity(
-            "log_file_status",
-            (tid, file["name"], "SUCCESS" if ok else "FAILED")
-        )
-
-        if ok:
-            yield context.call_activity("delete_source_files", {"file": file, "req": req})
-            return True
-
+        try:
+            result = yield context.call_activity("copy_blob", {"file": file, "req": req})
+            ok = result.get("success", False) if isinstance(result, dict) else bool(result)
+            
+            if ok:
+                break
+        except Exception as e:
+            ok = False
+        
         retry += 1
 
-    return False
+    # Log file status
+    yield context.call_activity(
+        "log_file_status",
+        (tid, file, "SUCCESS" if ok else "FAILED")
+    )
+
+    return ok
 
 main = df.Orchestrator.create(orchestrator)
