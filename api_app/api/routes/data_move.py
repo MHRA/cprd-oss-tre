@@ -5,6 +5,7 @@ from azure.servicebus import ServiceBusClient, ServiceBusMessage
 from fastapi import APIRouter, HTTPException, status as status_code, Depends
 from jsonschema import ValidationError
 from starlette import status
+from typing import List
 
 from api.dependencies.database import get_repository
 from db.repositories.workspaces import WorkspaceRepository
@@ -70,7 +71,7 @@ async def create_draft_request(
                 user=user,
             )
         workspace_asml = await workspaceRepo.get_asml_workspace(workspace.id)  # validate workspace exists in Cosmos and get peering info for data move
-        files: list[DataMoveFile] = data_move.get_files(workspace.id, datamove_request_input.emasl_protocol_id)  # validate protocol exists and is accessible in the source workspace
+        files: List[DataMoveFile] = data_move.get_files(workspace.id, datamove_request_input.emasl_protocol_id)  # validate protocol exists and is accessible in the source workspace
         total_size: float = sum(file.file_size for file in files) if files else 0.0
         total_size_gb: float = total_size / (1024 * 1024 * 1024)
         datamove_request.files_size = total_size_gb

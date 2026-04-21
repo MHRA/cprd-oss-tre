@@ -1,4 +1,5 @@
 import logging
+from typing import List
 from azure.storage.blob import BlobServiceClient
 from azure.storage.blob._container_client import ContainerClient
 from models.domain.data_move_transactions import DataMoveFile
@@ -6,7 +7,7 @@ from resources import constants
 from core import credentials
 
 
-def get_files(workspace_id: str, protocol_id: str) -> list[DataMoveFile]:
+def get_files(workspace_id: str, protocol_id: str) -> List[DataMoveFile]:
     try:
         account_name: str = constants.STORAGE_ACCOUNT_NAME_WORKSPACE_RESOURCE_GROUP_SSBS.format(workspace_id[-4])
 
@@ -17,7 +18,7 @@ def get_files(workspace_id: str, protocol_id: str) -> list[DataMoveFile]:
 
         container_client: ContainerClient = blob_service_client.get_container_client(protocol_id)
 
-        files: list[DataMoveFile] = []
+        files: List[DataMoveFile] = []
 
         blobs = container_client.list_blobs(name_starts_with="SendToAnalyse")
 
