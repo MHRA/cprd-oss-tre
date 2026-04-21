@@ -1,0 +1,140 @@
+# This Managed ID will be used for the Function App for downloading the function code and authentication.
+# For reading data from KeyVaults we must create the corresponding role assignments.
+resource "azurerm_user_assigned_identity" "function_app_data_move_processor_identity" {
+  name                = "id-app-data-move-processor-${var.tre_id}"
+  location            = var.location
+  resource_group_name = var.resource_group_name
+}
+
+# Role required for reading from Storage Account.
+resource "azurerm_role_assignment" "assign_identity_storage_blob_data_contributor" {
+  scope                = data.azurerm_storage_account.stg.id
+  role_definition_name = "Storage Blob Data Contributor"
+  principal_id         = azurerm_user_assigned_identity.function_app_data_move_processor_identity.principal_id
+}
+
+# Role required at Subscription level for listing Resource Groups.
+resource "azurerm_role_assignment" "assign_identity_reader" {
+  scope                = data.azurerm_subscription.current.id
+  role_definition_name = "Reader"
+  principal_id         = azurerm_user_assigned_identity.function_app_data_move_processor_identity.principal_id
+}
+
+resource "azurerm_cosmosdb_sql_role_assignment" "cosmos_data_access_data_move_processor" {
+  resource_group_name = var.resource_group_name
+  account_name        = "cosmos-${var.tre_id}"
+  # This is the ID for "Cosmos DB Built-in Data Reader" built-in role.
+  role_definition_id  = "${var.cosmosdb_account_id}/sqlRoleDefinitions/00000000-0000-0000-0000-000000000001" # GUID
+  principal_id         = azurerm_user_assigned_identity.function_app_data_move_processor_identity.principal_id
+  scope                = var.cosmosdb_account_id
+}
+
+
+# Getting IP address for enabling access to
+data "http" "my_ip_address" {
+  url = "https://ipecho.net/plain"
+}
+
+# Only for debugging.
+output "my_ip_address" {
+  value = data.http.my_ip_address.response_body
+}
+
+# Let's wait a little bit for the Storage account creation settles down. :)
+resource "time_sleep" "wait_for_storage_account_creation" {
+  create_duration = "30s"
+
+  depends_on = [
+    azurerm_role_assignment.assign_identity_storage_blob_data_contributor
+  ]
+}
+
+# Storage container for storing Function App code/releases.
+resource "azurerm_storage_container" "data_move_processor" {
+  name                 = "data-move-processor-${var.tre_id}"
+  storage_account_name = data.azurerm_storage_account.stg.name
+
+  depends_on = [
+    time_sleep.wait_for_storage_account_creation
+  ]
+}
+
+resource "null_resource" "install_function_app_requirements" {
+  triggers = {
+    requirements_md5 = "${filemd5("${path.root}/../../data_move_processor/requirements.txt")}"
+  }
+
+  provisioner "local-exec" {
+    command = "pip install --target='.python_packages/lib/site-packages' -r requirements.txt"
+    working_dir = "${path.root}/../../data_move_processor"
+  }
+}
+
+data "archive_file" "data_move_processor_zip" {
+  type        = "zip"
+  source_dir  = "${path.root}/../../data_move_processor"
+  output_path = "${path.root}/func-data-move-processor.zip"
+
+  depends_on = [null_resource.install_function_app_requirements]
+}
+
+# Upload Function App's code.
+resource "azurerm_storage_blob" "data_move_processor" {
+  # name                   = "func-data-move-processor.zip"
+  name                   = "func-data-move-processor-${substr(data.archive_file.data_move_processor_zip.output_md5, 0, 6)}.zip"
+  storage_account_name   = data.azurerm_storage_account.stg.name
+  storage_container_name = azurerm_storage_container.data_move_processor.name
+  type                   = "Block"
+  source =               data.archive_file.data_move_processor_zip.output_path
+  # source                 = "${path.root}/func-data-move-processor.zip"
+}
+
+# Create Function App resource.
+# The code will be loaded from a ZIP file stored in a blob storage container.
+resource "azurerm_linux_function_app" "data_move_processor" {
+  name                = "func-data-move-processor-${var.tre_id}"
+  resource_group_name = var.resource_group_name
+  location            = var.location
+  tags                = var.tre_core_tags
+
+  identity {
+    type = "UserAssigned"
+    identity_ids = [
+      azurerm_user_assigned_identity.function_app_data_move_processor_identity.id
+    ]
+  }
+
+  storage_account_name       = data.azurerm_storage_account.stg.name
+  storage_account_access_key = data.azurerm_storage_account.stg.primary_access_key
+  service_plan_id            = data.azurerm_service_plan.core.id
+  builtin_logging_enabled    = false
+
+  # This configuration makes the Function App runs from a file
+  # stored in tha blob storage container.
+  app_settings = {
+    "WEBSITE_RUN_FROM_PACKAGE"                     = "https://${data.azurerm_storage_account.stg.name}.blob.core.windows.net/${azurerm_storage_container.data_move_processor.name}/${azurerm_storage_blob.data_move_processor.name}"
+    "WEBSITE_RUN_FROM_PACKAGE_BLOB_MI_RESOURCE_ID" = azurerm_user_assigned_identity.function_app_data_move_processor_identity.id
+    "MANAGED_IDENTITY_CLIENT_ID"                   = azurerm_user_assigned_identity.function_app_data_move_processor_identity.client_id
+    "WEBSITE_TIME_ZONE"                            = local.execution_tizezone
+    "SUBSCRIPTION_ID"                              = data.azurerm_client_config.current.subscription_id
+    "ENVIRONMENT_PREFIX"                           = local.environment_prefix
+    "APPINSIGHTS_INSTRUMENTATIONKEY"               = data.azurerm_application_insights.core.instrumentation_key
+    "FUNCTIONS_WORKER_RUNTIME"                     = "python"
+    "CORE_STORAGE_ACCESS_KEY"                      = data.azurerm_storage_account.stg.primary_access_key
+    "SERVICE_BUS_FULLY_QUALIFIED_NAMESPACE"        = local.fully_qualified_namespace
+    "SERVICE_BUS_DATA_MOVE_QUEUE_NAME"             = azurerm_servicebus_queue.data_move_requests.name
+  }
+
+  # We are running a Python app.
+  site_config {
+    application_stack {
+      python_version = "3.11"
+    }
+    application_insights_connection_string = data.azurerm_application_insights.core.connection_string
+    application_insights_key               = data.azurerm_application_insights.core.instrumentation_key
+    always_on                              = true
+  }
+
+  # This is the subnet used for VNet integration.
+  virtual_network_subnet_id = var.web_app_subnet_id
+}

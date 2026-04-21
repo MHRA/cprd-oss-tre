@@ -1,0 +1,10 @@
+variable "blob_core_dns_zone_id" {}
+variable "core_storage_name" {}
+variable "cosmosdb_account_id" {}
+variable "location" {}
+variable "resource_group_name" {}
+variable "servicebus_namespace_id" {}
+variable "shared_subnet_id" {}
+variable "web_app_subnet_id" {}
+variable "tre_core_tags" {}
+variable "tre_id" {}

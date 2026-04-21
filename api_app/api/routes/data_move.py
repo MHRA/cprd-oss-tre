@@ -7,7 +7,7 @@ from jsonschema import ValidationError
 from starlette import status
 
 from api.dependencies.database import get_repository
-from api_app.db.repositories.workspaces import WorkspaceRepository
+from db.repositories.workspaces import WorkspaceRepository
 from services import data_move
 from core import credentials
 from models.domain.authentication import User
