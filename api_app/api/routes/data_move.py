@@ -11,7 +11,7 @@ from db.repositories.workspaces import WorkspaceRepository
 from services import data_move
 from core import credentials
 from models.domain.authentication import User
-from models.domain.data_move_transactions import DataMoveTransactions
+from models.domain.data_move_transactions import DataMoveTransactions, DataMoveFile
 from models.domain.workspace import Workspace
 from db.repositories.data_move import DataMoveRepository
 from models.schemas.data_move_transactions import (
