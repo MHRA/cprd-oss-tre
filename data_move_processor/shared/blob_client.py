@@ -10,7 +10,6 @@ from azure.storage.blob._container_client import ContainerClient
 from azure.storage.blob._models import BlobProperties
 from azure.storage.blob._shared.models import UserDelegationKey
 from api_app.core import credentials
-# from api_app.models.domain.data_move_transactions import DataMoveFile
 from shared.cosmos_client import get_workspace_type
 from shared.config import STORAGE_ACCOUNT_NAME_WORKSPACE_RESOURCE_GROUP_SSBS, EMPTY_FILE_NAME, WORKSPACE_RESOURCE_GROUP_NAME, get_tre_id
 
@@ -57,12 +56,12 @@ def list_blobs(workspace_id: str, container_name: str, prefix=None):
     # Iterate over returned blobs.
     for blob in source_container_content:
         blob_data_elem = {
-                "WorkspaceName": rg_workspace_name,
-                "WorkspaceId": workspace_id,
-                "SourceContainerName": container_name,
-                "FileName": blob['name'],
-                "FileSize": blob['size']
-            }
+            "WorkspaceName": rg_workspace_name,
+            "WorkspaceId": workspace_id,
+            "SourceContainerName": container_name,
+            "FileName": blob['name'],
+            "FileSize": blob['size']
+        }
 
         if EMPTY_FILE_NAME not in blob['name']:
             source_files_data.append(blob_data_elem)
