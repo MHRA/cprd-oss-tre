@@ -4,10 +4,10 @@ from pydantic import BaseModel
 
 
 class DataMoveTransactionRequest(BaseModel):
-    emsl_workspace_id:str
-    emasl_protocol_id:str
-    amsl_workspace_id:str
-    amsl_protocol_id:str
+    emasl_workspace_id: str
+    emasl_protocol_id: str
+    amsl_workspace_id: str
+    amsl_protocol_id: str
 
 
     class config:

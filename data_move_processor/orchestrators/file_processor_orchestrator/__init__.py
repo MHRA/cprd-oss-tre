@@ -12,9 +12,9 @@ def orchestrator(context: df.DurableOrchestrationContext):
 
     while retry < max_retry:
 
-        yield context.call_activity("copy_blob", file)
+        yield context.call_activity("copy_blob", {"file": file, "req": req})
 
-        ok = yield context.call_activity("check_integrity", file)
+        ok = yield context.call_activity("check_integrity", {"file": file, "req": req})
 
         yield context.call_activity(
             "log_file_status",

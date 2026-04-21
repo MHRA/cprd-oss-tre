@@ -69,7 +69,15 @@ def list_blobs(workspace_id: str, container_name: str, prefix=None):
 
     return source_files_data
 
-def copy_blob(workspace_id: str,source_container: str, source_blob: str,dest_container: str, dest_blob: str):
+def copy_blob(
+    workspace_id: str,
+    source_container: str,
+    source_blob: str,
+    amsl_workspace_id: str,
+):
+    # Destination blob name is always same as source
+    dest_blob: str = source_blob
+    dest_container = (source_container[:-1]+"a")
 
     source_blob_service_client: BlobServiceClient = get_blob_service_client(workspace_id)
     source_blob_client: BlobClient = source_blob_service_client.get_blob_client(
@@ -102,32 +110,31 @@ def copy_blob(workspace_id: str,source_container: str, source_blob: str,dest_con
     properties: BlobProperties = source_blob_client.get_blob_properties()
     metadata = properties.metadata or {}
 
-    copied_from = json.loads(metadata["copied_from"]) if "copied_from" in metadata else []
-    metadata["copied_from"] = json.dumps(copied_from + [source_blob_client.url])
+    copied_from = json.loads(metadata.get("copied_from", "[]"))
+    copied_from.append(source_blob_client.url)
+    metadata["copied_from"] = json.dumps(copied_from)
 
-
-    dest_blob_service_client: BlobServiceClient = get_blob_service_client(workspace_id)
+    # Destination client
+    dest_blob_service_client: BlobServiceClient = get_blob_service_client(amsl_workspace_id)
     dest_blob_client: BlobClient = dest_blob_service_client.get_blob_client(
         container=dest_container,
         blob=dest_blob,
     )
 
-
+    # Start copy
     copy_props = dest_blob_client.start_copy_from_url(
         source_url_with_sas,
         metadata=metadata,
     )
 
-    try:
-        logging.info(
-            "Copy started: copy_id=%s, copy_status=%s",
-            copy_props["copy_id"],
-            copy_props["copy_status"],
-        )
-    except KeyError as e:
-        logging.error("Unable to read copy operation properties: %s", e)
+    logging.info(
+        "Copy started: copy_id=%s, copy_status=%s",
+        copy_props.get("copy_id"),
+        copy_props.get("copy_status"),
+    )
 
     return dest_blob_client.get_blob_properties()
+
 
 
 def delete_blob(workspace_id: str, container_name: str, blob_name: str):

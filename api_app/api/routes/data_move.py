@@ -1,11 +1,9 @@
 import datetime
 import logging
-from typing import Optional
 
 from azure.servicebus import ServiceBusClient, ServiceBusMessage
 from fastapi import APIRouter, HTTPException, status as status_code, Depends
 from jsonschema import ValidationError
-from pydantic import json
 from starlette import status
 
 from api.dependencies.database import get_repository
@@ -17,6 +15,7 @@ from models.domain.data_move_transactions import DataMoveTransactions
 from models.domain.workspace import Workspace
 from db.repositories.data_move import DataMoveRepository
 from models.schemas.data_move_transactions import (
+    DataMoveFile,
     DataMoveTransactionRequest,
     DataMoveTransactionResponse,
     DataMoveTransactionResponseList,
@@ -47,7 +46,7 @@ datamove_core_router = APIRouter(
 # CREATE REQUEST
 # -------------------------
 @datamove_workspace_router.post(
-    "/workspaces/{workspace_id}/requests",
+    "/workspaces/{workspace_id}/data_move/requests",
     status_code=status_code.HTTP_201_CREATED,
     response_model=DataMoveTransactionResponse,
     name=strings.API_CREATE_DATA_MOVE_REQUEST,
@@ -71,12 +70,14 @@ async def create_draft_request(
                 user=user,
             )
         workspace_asml = await workspaceRepo.get_asml_workspace(workspace.id)  # validate workspace exists in Cosmos and get peering info for data move
-        total_size: float = await data_move.get_folder_size(workspace.id, datamove_request_input.emasl_protocol_id)
-        datamove_request.file_size = total_size
+        files: list[DataMoveFile] = data_move.get_files(workspace.id, datamove_request_input.emasl_protocol_id)  # validate protocol exists and is accessible in the source workspace
+        total_size: float = sum(file.file_size for file in files) if files else 0.0
+        total_size_gb: float = total_size / (1024 * 1024 * 1024)
+        datamove_request.files_size = total_size_gb
+        datamove_request.files = files
         datamove_request.amsl_workspace_id = workspace_asml.id
-        datamove_request.amsl_protocol_id= datamove_request_input.emasl_protocol_id = (
-                datamove_request_input.emasl_protocol_id[:-1] + "a"
-            )
+        amsl_protocol_id: str = datamove_request_input.emasl_protocol_id[:-1] + "a"
+        datamove_request.amsl_protocol_id = amsl_protocol_id
         await save_and_publish_event_datamove_request(
             datamove_request=datamove_request,
             datamove_request_repo=datamove_request_repo,
@@ -88,7 +89,7 @@ async def create_draft_request(
             transaction_id=datamove_request.id,
             workspace_id=datamove_request.workspaceId,
             protocol_id=datamove_request.protocol_id,
-            file_size=datamove_request.file_size,
+            file_size=datamove_request.files_size,
             date_time=datamove_request.date_time,
             status=datamove_request.status,
         )
@@ -105,7 +106,7 @@ async def create_draft_request(
 # GET ALL REQUESTS
 # -------------------------
 @datamove_workspace_router.get(
-    "/workspaces/{workspace_id}/history",
+    "/workspaces/{workspace_id}/data_move/history",
     status_code=status_code.HTTP_200_OK,
     response_model=DataMoveTransactionResponseList,
     name=strings.API_LIST_DATA_MOVE_REQUESTS,
@@ -130,7 +131,7 @@ async def get_all_datamove_requests_by_workspace(
                     transaction_id=req.id,
                     workspace_id=req.workspaceId,
                     protocol_id=req.protocol_id,
-                    file_size=req.file_size,
+                    file_size=req.files_size,
                     date_time=req.date_time,
                     status=req.status,
                 )

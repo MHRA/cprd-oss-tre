@@ -50,8 +50,11 @@ class DataMoveRepository(BaseRepository):
         datamove_request = DataMoveTransactions(
             id=full_datamove_request_id,
             workspaceId=workspace_id,
-            protocol_id=datamove_request_input.protocol_id,
-            file_size=datamove_request_input.file_size,
+            protocol_id=datamove_request_input.emasl_protocol_id,
+            amsl_workspace_id=datamove_request_input.amsl_workspace_id,
+            amsl_protocol_id=datamove_request_input.amsl_protocol_id,
+            files_size=0.0,
+            files=[],
             date_time=now,
             status="DRAFT",
             createdBy=user,
