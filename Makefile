@@ -14,10 +14,11 @@ target_title = @echo -e "\n\e[34m»»» 🧩 \e[96m$(1)\e[0m..."
 all: bootstrap mgmt-deploy images tre-deploy
 tre-deploy: deploy-core build-and-deploy-ui firewall-install application-gateway-install db-migrate show-core-output ## 🚀 Provision TRE using existing images
 
-images: build-and-push-api build-and-push-resource-processor build-and-push-airlock-processor
+images: build-and-push-api build-and-push-resource-processor build-and-push-airlock-processor build-and-push-data-move-processor
 build-and-push-api: build-api-image push-api-image
 build-and-push-resource-processor: build-resource-processor-vm-porter-image push-resource-processor-vm-porter-image
 build-and-push-airlock-processor: build-airlock-processor push-airlock-processor
+build-and-push-data-move-processor: build-data-move-processor push-data-move-processor
 
 # to move your environment from the single 'core' deployment (which includes the firewall)
 # toward the shared services model, where it is split out - run the following make target before a tre-deploy
@@ -68,6 +69,9 @@ build-resource-processor-vm-porter-image:
 build-airlock-processor:
 	$(call build_image,"airlock-processor","${MAKEFILE_DIR}/airlock_processor/_version.py","${MAKEFILE_DIR}/airlock_processor/Dockerfile","${MAKEFILE_DIR}/airlock_processor/")
 
+build-data-move-processor:
+	$(call build_image,"data-move-processor","${MAKEFILE_DIR}/data_move_processor/_version.py","${MAKEFILE_DIR}/data_move_processor/Dockerfile","${MAKEFILE_DIR}/data_move_processor/")
+
 # A recipe for pushing images. Parameters:
 # 1. Image name suffix
 # 2. Version file path
@@ -89,6 +93,9 @@ push-resource-processor-vm-porter-image:
 
 push-airlock-processor:
 	$(call push_image,"airlock-processor","${MAKEFILE_DIR}/airlock_processor/_version.py")
+
+push-data-move-processor:
+	$(call push_image,"data-move-processor","${MAKEFILE_DIR}/data_move_processor/_version.py")
 
 # # These targets are for a graceful migration of Firewall
 # # from terraform state in Core to a Shared Service.
