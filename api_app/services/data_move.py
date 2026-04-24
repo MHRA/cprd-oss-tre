@@ -20,21 +20,24 @@ def get_files(workspace_id: str, protocol_id: str) -> List[DataMoveFile]:
 
         files: List[DataMoveFile] = []
 
-        blobs = container_client.list_blobs(name_starts_with="SendToAnalyse")
+        blobs = container_client.list_blobs(name_starts_with="SendToAnalyse/")
 
         for blob in blobs:
-            dataMoveFile = DataMoveFile(
-                file_name=blob.name,
-                file_size=blob.size
-            )
-            files.append(dataMoveFile)
+
+            relative_path = blob.name.replace("SendToAnalyse/", "")
+
+            if "/" not in relative_path and not relative_path.endswith("/"):
+                dataMoveFile = DataMoveFile(
+                    file_name=relative_path,
+                    file_size=blob.size
+                )
+                files.append(dataMoveFile)
 
         return files
 
     except Exception as e:
         logging.error(f"Error retrieving files from container {protocol_id}: {e}")
         return []
-
 
 def get_account_url(account_name: str) -> str:
     return f"https://{account_name}.blob.core.windows.net/"

@@ -41,12 +41,10 @@ def get_blob_service_client(workspace_id: str) -> BlobServiceClient:
 
 
 def list_blobs(workspace_id: str, container_name: str, prefix=None):
-    """List blobs to be moved. container_name must include the suffix."""
+
     blob_service_client: BlobServiceClient = get_blob_service_client(workspace_id)
     container_client: ContainerClient = blob_service_client.get_container_client(container_name)
 
-    # We list the content only from the source directory.
-    # This operation requires 'Storage Blob Data Reader' role.
     source_container_content = container_client.list_blobs(name_starts_with = prefix)
     source_files_data = []
 
@@ -68,20 +66,18 @@ def list_blobs(workspace_id: str, container_name: str, prefix=None):
 
     return source_files_data
 
-def copy_blob(
-    workspace_id: str,
-    source_container: str,
-    source_blob: str,
-    amsl_workspace_id: str,
-):
-    # Destination blob name is always same as source
-    dest_blob: str = source_blob
-    dest_container = (source_container[:-1]+"a")
+def copy_blob(workspace_id: str, source_container: str, source_blob: str, amsl_workspace_id: str):
+
+    dest_container: str = source_container[:-1] + "a"
+
+    full_source_blob: str = f"SendToAnalyse/{source_blob}"
+
+    dest_blob: str = f"ReceiveFromExplore/{source_blob}"
 
     source_blob_service_client: BlobServiceClient = get_blob_service_client(workspace_id)
     source_blob_client: BlobClient = source_blob_service_client.get_blob_client(
         container=source_container,
-        blob=source_blob,
+        blob=full_source_blob,
     )
 
     start_time = datetime.utcnow() - timedelta(minutes=15)
@@ -103,9 +99,6 @@ def copy_blob(
 
     source_url_with_sas: str = f"{source_blob_client.url}?{sas_token}"
 
-    # ------------------------------------------------------------------
-    # Preserve and update metadata
-    # ------------------------------------------------------------------
     properties: BlobProperties = source_blob_client.get_blob_properties()
     metadata = properties.metadata or {}
 
@@ -127,7 +120,9 @@ def copy_blob(
     )
 
     logging.info(
-        "Copy started: copy_id=%s, copy_status=%s",
+        "Copy started: source=%s, destination=%s, copy_id=%s, copy_status=%s",
+        full_source_blob,
+        dest_blob,
         copy_props.get("copy_id"),
         copy_props.get("copy_status"),
     )
@@ -138,7 +133,8 @@ def copy_blob(
 
 def delete_blob(workspace_id: str, container_name: str, blob_name: str):
     blob_service_client: BlobServiceClient = get_blob_service_client(workspace_id)
-    blob_client: BlobClient = blob_service_client.get_blob_client(container_name, blob_name)
+    full_source_blob: str = f"SendToAnalyse/{blob_name}"
+    blob_client: BlobClient = blob_service_client.get_blob_client(container_name, full_source_blob)
     blob_client.delete_blob()
 
 def get_blob_properties(workspace_id: str, container_name: str, blob_name: str):
@@ -149,9 +145,9 @@ def get_blob_properties(workspace_id: str, container_name: str, blob_name: str):
 
 def check_container_integrity(workspace_id: str,source_container: str,amsl_workspace_id: str)-> bool:
 
-    dest_container = (source_container[:-1]+"a")
-    source_blobs = list_blobs(workspace_id, source_container)
-    dest_blobs = list_blobs(amsl_workspace_id, dest_container)
+    dest_container: str = (source_container[:-1]+"a")
+    source_blobs = list_blobs(workspace_id, source_container, prefix="SendToAnalyse/")
+    dest_blobs = list_blobs(amsl_workspace_id, dest_container, prefix="ReceiveFromExplore/")
 
     source_size: int | float = sum(file.FileSize for file in source_blobs) if source_blobs else 0.0
     dest_size: int | float = sum(file.FileSize for file in dest_blobs) if dest_blobs else 0.0
@@ -164,7 +160,7 @@ def acquire_container_lease(workspace_id: str, container_name: str, lease_id=Non
     container_client: ContainerClient = blob_service_client.get_container_client(container_name)
     lease_client = container_client.get_lease_client(lease_id)
     try:
-        lease_client.acquire(lease_duration=60)  # 60 seconds, can be renewed
+        lease_client.acquire(lease_duration=-1)
         return lease_client.id
     except Exception:
         return None
