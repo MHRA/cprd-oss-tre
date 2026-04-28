@@ -53,6 +53,12 @@ variable "resource_processor_vmss_porter_image_repository" {
   default     = "microsoft/azuretre/resource-processor-vm-porter"
 }
 
+variable "data_mover_processor_image_repository" {
+  type        = string
+  description = "Repository for Data Move processor porter image"
+  default     = "microsoft/azuretre/data-move-processor"
+}
+
 variable "mgmt_storage_account_name" {
   type        = string
   description = "Storage account created by bootstrap to hold all Terraform state"

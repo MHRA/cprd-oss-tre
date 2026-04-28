@@ -215,17 +215,22 @@ module "data_usage_enforcement" {
 }
 
 module "data_move_processor" {
-  source                  = "./data_move_processor"
-  tre_id                  = var.tre_id
-  location                = var.location
-  resource_group_name     = azurerm_resource_group.core.name
-  shared_subnet_id        = module.network.shared_subnet_id
-  web_app_subnet_id       = module.network.web_app_subnet_id
-  blob_core_dns_zone_id   = module.network.blob_core_dns_zone_id
-  tre_core_tags           = local.tre_core_tags
-  core_storage_name       = azurerm_storage_account.stg.name
-  cosmosdb_account_id     = azurerm_cosmosdb_account.tre_db_account.id
-  servicebus_namespace_id = azurerm_servicebus_namespace.sb.id
+  source                               = "./data_move_processor"
+  tre_id                               = var.tre_id
+  location                             = var.location
+  resource_group_name                  = azurerm_resource_group.core.name
+  shared_subnet_id                     = module.network.shared_subnet_id
+  web_app_subnet_id                    = module.network.web_app_subnet_id
+  blob_core_dns_zone_id                = module.network.blob_core_dns_zone_id
+  tre_core_tags                        = local.tre_core_tags
+  core_storage_name                    = azurerm_storage_account.stg.name
+  cosmosdb_account_id                  = azurerm_cosmosdb_account.tre_db_account.id
+  servicebus_namespace                 = azurerm_servicebus_namespace.sb
+  data_move_processor_image_repository = var.data_mover_processor_image_repository
+  docker_registry_server               = local.docker_registry_server
+  log_analytics_workspace_id           = module.azure_monitor.log_analytics_workspace_id
+  mgmt_resource_group_name             = var.mgmt_resource_group_name
+  mgmt_acr_name                        = var.acr_name
 
   depends_on = [
     module.network,
