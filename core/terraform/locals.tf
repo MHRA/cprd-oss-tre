@@ -77,4 +77,5 @@ locals {
   pe_storage_environment = length(local.pe_storage_matches) > 0 ? local.pe_storage_matches[0] : "?"
 
   study_folder_create_queue_name = "study-folder-create"
+  data_move_requests_queue_name = "data-move-requests"
 }

@@ -1,7 +1,9 @@
 import datetime
 import logging
 
-from azure.servicebus import ServiceBusClient, ServiceBusMessage
+# from azure.servicebus import ServiceBusClient, ServiceBusMessage
+from azure.servicebus import ServiceBusMessage
+from azure.servicebus.aio import ServiceBusClient
 from fastapi import APIRouter, HTTPException, status as status_code, Depends
 from jsonschema import ValidationError
 from starlette import status
@@ -71,13 +73,15 @@ async def create_draft_request(
                 user=user,
             )
         workspace_asml = await workspaceRepo.get_asml_workspace(workspace.id)
-        files: List[DataMoveFile] = data_move.get_files(workspace.id, datamove_request_input.protocol_id)
+        # files: List[DataMoveFile] = data_move.get_files(workspace.id, datamove_request_input.protocol_id)
+        # files: List[DataMoveFile] = await data_move.get_files(workspace.id, datamove_request_input.protocol_id)
+        files: List[DataMoveFile] = []
         total_size: float = sum(file.file_size for file in files) if files else 0.0
         total_size_gb: float = total_size / (1024 * 1024 * 1024)
         datamove_request.files_size = total_size_gb
         datamove_request.files = files
         datamove_request.amsl_workspace_id = workspace_asml.id
-        amsl_protocol_id: str = datamove_request_input.emasl_protocol_id[:-1] + "a"
+        amsl_protocol_id: str = datamove_request_input.protocol_id[:-1] + "a"
         datamove_request.amsl_protocol_id = amsl_protocol_id
         await save_and_publish_event_datamove_request(
             datamove_request=datamove_request,

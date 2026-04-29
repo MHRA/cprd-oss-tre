@@ -7,7 +7,7 @@ from resources import constants
 from core import credentials
 
 
-def get_files(workspace_id: str, protocol_id: str) -> List[DataMoveFile]:
+async def get_files(workspace_id: str, protocol_id: str) -> List[DataMoveFile]:
     try:
         account_name: str = constants.STORAGE_ACCOUNT_NAME_WORKSPACE_RESOURCE_GROUP_SSBS.format(workspace_id[-4])
 
@@ -23,7 +23,6 @@ def get_files(workspace_id: str, protocol_id: str) -> List[DataMoveFile]:
         blobs = container_client.list_blobs(name_starts_with="SendToAnalyse/")
 
         for blob in blobs:
-
             relative_path = blob.name.replace("SendToAnalyse/", "")
 
             if "/" not in relative_path and not relative_path.endswith("/"):

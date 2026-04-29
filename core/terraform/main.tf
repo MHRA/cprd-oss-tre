@@ -231,6 +231,7 @@ module "data_move_processor" {
   log_analytics_workspace_id           = module.azure_monitor.log_analytics_workspace_id
   mgmt_resource_group_name             = var.mgmt_resource_group_name
   mgmt_acr_name                        = var.acr_name
+  data_move_requests_queue_name        = local.data_move_requests_queue_name
 
   depends_on = [
     module.network,
