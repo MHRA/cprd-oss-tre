@@ -1,5 +1,5 @@
 import os
-from api_app.services import logging
+import logging
 
 BLOB_CONN_STR = "YOUR_BLOB_CONNECTION"
 COSMOS_ENDPOINT = "https://cosmos-{}.documents.azure.com:443/"
@@ -13,17 +13,19 @@ QUEUE_NAME = "datamove-events"
 STORAGE_ACCOUNT_NAME_WORKSPACE_RESOURCE_GROUP_SSBS = "ssbsws{}{}"
 WORKSPACE_RESOURCE_GROUP_NAME = "rg-{}-ws-{}"
 
-SERVICE_BUS_FULLY_QUALIFIED_NAMESPACE: str = os.getenv("SERVICE_BUS_FULLY_QUALIFIED_NAMESPACE", "")
-SERVICE_BUS_DATA_MOVE_QUEUE_NAME: str = os.getenv("SERVICE_BUS_DATA_MOVE_QUEUE_NAME", "")
+SERVICE_BUS_FULLY_QUALIFIED_NAMESPACE = os.getenv(
+    "SERVICE_BUS_FULLY_QUALIFIED_NAMESPACE", ""
+)
+SERVICE_BUS_DATA_MOVE_QUEUE_NAME = os.getenv(
+    "SERVICE_BUS_DATA_MOVE_QUEUE_NAME", ""
+)
 
 A_MSL_WORKSPACE = "tre-workspace-a-msl"
 E_MSL_WORKSPACE = "tre-workspace-e-msl"
 EMPTY_FILE_NAME = ".emptyFile"
 
 def get_tre_id():
-    try:
-        tre_id = os.environ["TRE_ID"]
-    except KeyError as e:
-        logging.error(f'Missing environment variable: {e}')
-        raise
+    tre_id = os.getenv("TRE_ID")
+    if not tre_id:
+        logging.error("Missing environment variable: TRE_ID")
     return tre_id

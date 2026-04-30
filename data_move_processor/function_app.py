@@ -1,11 +1,11 @@
+print(">>> function_app.py LOADED <<<")
 import azure.functions as func
 import azure.durable_functions as df
 import json
-import os
 
-# Import orchestrators
-from orchestrators.data_move_orchestrator import main as data_move_orchestrator
-from orchestrators.file_processor_orchestrator import main as file_processor_orchestrator
+# Import orchestrator implementations
+from orchestrators.data_move_orchestrator import main as data_move_orch_impl
+from orchestrators.file_processor_orchestrator import main as file_processor_orch_impl
 
 # Import activities
 from activities.check_preconditions import check_preconditions
@@ -19,17 +19,23 @@ from activities.delete_source_files import delete_source_files
 from activities.release_lock import release_lock
 from activities.send_status_event import send_status_event
 
-# Import config
-from shared.config import SERVICE_BUS_DATA_MOVE_QUEUE_NAME
+# Config
+from shared.config import SERVICE_BUS_DATA_MOVE_QUEUE_NAME, SERVICE_BUS_FULLY_QUALIFIED_NAMESPACE
+
+app = df.DFApp()
 
 QUEUE_NAME = SERVICE_BUS_DATA_MOVE_QUEUE_NAME or "datamove-events"
-SERVICE_BUS_CONNECTION = os.environ.get("SERVICE_BUS_CONNECTION_STRING_NAME", "SERVICE_BUS_CONN_STR")
+SERVICE_BUS_CONNECTION = SERVICE_BUS_FULLY_QUALIFIED_NAMESPACE or "SERVICE_BUS_CONN_STR"
 
-@func.ServiceBusQueueTrigger(arg_name="msg", queue_name=QUEUE_NAME, connection=SERVICE_BUS_CONNECTION)
-@df.DurableOrchestrationClient.input(starter)
-async def data_move_trigger(msg: func.ServiceBusMessage, starter: str):
 
-    client = df.DurableOrchestrationClient(starter)
+# ✅ Service Bus trigger
+@app.service_bus_queue_trigger(
+    arg_name="msg",
+    queue_name=QUEUE_NAME,
+    connection=SERVICE_BUS_CONNECTION
+)
+@app.durable_client_input(client_name="client")
+async def data_move_trigger(msg: func.ServiceBusMessage, client):
 
     body = json.loads(msg.get_body().decode("utf-8"))
 
@@ -40,3 +46,65 @@ async def data_move_trigger(msg: func.ServiceBusMessage, starter: str):
     )
 
     return instance_id
+
+
+# ✅ Orchestrators (names MUST match start_new / call_sub_orchestrator)
+@app.orchestration_trigger(context_name="context")
+def data_move_orchestrator(context):
+    return data_move_orch_impl(context)
+
+
+@app.orchestration_trigger(context_name="context")
+def file_processor_orchestrator(context):
+    return file_processor_orch_impl(context)
+
+
+# ✅ Activities (names MUST match call_activity)
+@app.activity_trigger(input_name="input")
+def check_preconditions(input):
+    return check_preconditions(input)
+
+
+@app.activity_trigger(input_name="input")
+def acquire_lock(input):
+    return acquire_lock(input)
+
+
+@app.activity_trigger(input_name="input")
+def snapshot_files(input):
+    return snapshot_files(input)
+
+
+@app.activity_trigger(input_name="input")
+def copy_blob(input):
+    return copy_blob(input)
+
+
+@app.activity_trigger(input_name="input")
+def check_integrity(input):
+    return check_integrity(input)
+
+
+@app.activity_trigger(input_name="input")
+def log_file_status(input):
+    return log_file_status(input)
+
+
+@app.activity_trigger(input_name="input")
+def update_transaction_status(input):
+    return update_transaction_status(input)
+
+
+@app.activity_trigger(input_name="input")
+def delete_source_files(input):
+    return delete_source_files(input)
+
+
+@app.activity_trigger(input_name="input")
+def release_lock(input):
+    return release_lock(input)
+
+
+@app.activity_trigger(input_name="input")
+def send_status_event(input):
+    return send_status_event(input)

@@ -73,9 +73,9 @@ async def create_draft_request(
                 user=user,
             )
         workspace_asml = await workspaceRepo.get_asml_workspace(workspace.id)
-        # files: List[DataMoveFile] = data_move.get_files(workspace.id, datamove_request_input.protocol_id)
-        # files: List[DataMoveFile] = await data_move.get_files(workspace.id, datamove_request_input.protocol_id)
-        files: List[DataMoveFile] = []
+        logging.info(f"Created data move request with id {datamove_request.id} for workspace {workspace.id} and protocol {datamove_request.protocol_id}")
+        files: List[DataMoveFile] = await data_move.get_files(workspace.id, datamove_request_input.protocol_id)
+        logging.info(f"Retrieved {len(files)} files for data move request with id {datamove_request.id} for workspace {workspace.id} and protocol {datamove_request.protocol_id}")
         total_size: float = sum(file.file_size for file in files) if files else 0.0
         total_size_gb: float = total_size / (1024 * 1024 * 1024)
         datamove_request.files_size = total_size_gb
