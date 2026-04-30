@@ -14,3 +14,8 @@ variable "shared_subnet_id" {}
 variable "web_app_subnet_id" {}
 variable "tre_core_tags" {}
 variable "tre_id" {}
+
+variable "data_move_app_service_plan_sku" {
+  type    = string
+  default = "P1v3"
+}
