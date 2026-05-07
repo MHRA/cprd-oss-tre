@@ -347,6 +347,7 @@ class AzureADAuthorization(AccessService):
                 response = requests.request(method=http_method, url=url, json=json, headers=auth_headers)
             else:
                 response = requests.request(method=http_method, url=url, headers=auth_headers)
+                logging.info(f">>>>>>> Check point 8 - {response.json()}")
             url = ""
             if response.status_code == 200:
                 json_response = response.json()
@@ -361,6 +362,8 @@ class AzureADAuthorization(AccessService):
     def _get_role_assignment_graph_data_for_user(self, user_id: str) -> dict:
         user_endpoint = f"https://graph.microsoft.com/v1.0/users/{user_id}/appRoleAssignments"
         graph_data = self._ms_graph_query(user_endpoint, "GET")
+        logging.info(f">>>>>>> Check point 5 - user_endpoint - {user_endpoint}")
+        logging.info(f">>>>>>> Check point 6 - graph_data - {graph_data}")
         return graph_data
 
     def _get_role_assignment_graph_data_for_service_principal(self, principal_id: str) -> dict:
@@ -416,7 +419,8 @@ class AzureADAuthorization(AccessService):
             logging.debug(graph_data)
             raise AuthConfigValidationError(f"{strings.ACCESS_UNABLE_TO_GET_ROLE_ASSIGNMENTS_FOR_USER} {user_id}")
 
-        logging.debug(graph_data)
+        logging.info(f">>>>>>> Check point 3 - {graph_data}")
+        # logging.debug(graph_data)
 
         return [RoleAssignment(role_assignment['resourceId'], role_assignment['appRoleId']) for role_assignment in graph_data['value']]
 

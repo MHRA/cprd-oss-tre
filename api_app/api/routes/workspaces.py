@@ -68,7 +68,9 @@ async def retrieve_users_active_workspaces(request: Request, user=Depends(get_cu
         workspaces = await workspace_repo.get_active_workspaces()
 
         access_service = get_access_service()
+        logging.info(f">>>>>>> Check point 1")
         user_role_assignments = get_identity_role_assignments(user)
+        logging.info(f">>>>>>> Check point 2")
 
         def _safe_get_workspace_role(user, workspace, user_role_assignments):
             # provide graceful failure if there is a workspace without auth info
