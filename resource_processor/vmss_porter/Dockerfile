@@ -1,8 +1,5 @@
 # syntax=docker/dockerfile:1
 FROM python:3.8-slim-bullseye
-RUN apt-get update && apt-get install ca-certificates -y
-COPY ZscalerRootCertificate-2048-SHA256.crt /usr/local/share/ca-certificates/ZscalerRootCertificate-2048-SHA256.crt
-RUN /usr/sbin/update-ca-certificates
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
 RUN rm -f /etc/apt/apt.conf.d/docker-clean; echo 'Binary::apt::APT::Keep-Downloaded-Packages "true";' > /etc/apt/apt.conf.d/keep-cache
