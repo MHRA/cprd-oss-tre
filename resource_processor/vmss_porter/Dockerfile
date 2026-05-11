@@ -1,6 +1,5 @@
 # syntax=docker/dockerfile:1
 FROM python:3.8-slim-bullseye
-
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
 RUN rm -f /etc/apt/apt.conf.d/docker-clean; echo 'Binary::apt::APT::Keep-Downloaded-Packages "true";' > /etc/apt/apt.conf.d/keep-cache
