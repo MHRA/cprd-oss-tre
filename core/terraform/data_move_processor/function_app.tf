@@ -17,6 +17,18 @@ resource "time_sleep" "wait_for_storage_account_creation" {
   ]
 }
 
+resource "azurerm_service_plan" "data_move" {
+  name                = "plan-data-move-${var.tre_id}"
+  resource_group_name = var.resource_group_name
+  location            = var.location
+  os_type             = "Linux"
+  sku_name            = var.data_move_app_service_plan_sku
+  tags                = var.tre_core_tags
+  worker_count        = 1
+
+  lifecycle { ignore_changes = [tags] }
+}
+
 # Storage container for storing Function App code/releases.
 resource "azurerm_storage_container" "data_move_processor" {
   name                 = "data-move-processor-${var.tre_id}"
@@ -26,36 +38,6 @@ resource "azurerm_storage_container" "data_move_processor" {
     time_sleep.wait_for_storage_account_creation
   ]
 }
-
-# resource "null_resource" "install_function_app_requirements" {
-#   triggers = {
-#     requirements_md5 = "${filemd5("${path.root}/../../data_move_processor/requirements.txt")}"
-#   }
-
-#   provisioner "local-exec" {
-#     command = "pip install --target='.python_packages/lib/site-packages' -r requirements.txt"
-#     working_dir = "${path.root}/../../data_move_processor"
-#   }
-# }
-
-# data "archive_file" "data_move_processor_zip" {
-#   type        = "zip"
-#   source_dir  = "${path.root}/../../data_move_processor"
-#   output_path = "${path.root}/func-data-move-processor.zip"
-
-#   depends_on = [null_resource.install_function_app_requirements]
-# }
-
-# # Upload Function App's code.
-# resource "azurerm_storage_blob" "data_move_processor" {
-#   # name                   = "func-data-move-processor.zip"
-#   name                   = "func-data-move-processor-${substr(data.archive_file.data_move_processor_zip.output_md5, 0, 6)}.zip"
-#   storage_account_name   = data.azurerm_storage_account.stg.name
-#   storage_container_name = azurerm_storage_container.data_move_processor.name
-#   type                   = "Block"
-#   source =               data.archive_file.data_move_processor_zip.output_path
-#   # source                 = "${path.root}/func-data-move-processor.zip"
-# }
 
 # Create Function App resource.
 # The code will be loaded from a ZIP file stored in a blob storage container.
@@ -74,23 +56,21 @@ resource "azurerm_linux_function_app" "data_move_processor" {
 
   storage_account_name       = data.azurerm_storage_account.stg.name
   storage_account_access_key = data.azurerm_storage_account.stg.primary_access_key
-  service_plan_id            = data.azurerm_service_plan.core.id
+  service_plan_id            = azurerm_service_plan.data_move.id
   builtin_logging_enabled    = false
 
   # This configuration makes the Function App runs from a file
   # stored in tha blob storage container.
   app_settings = {
-    # "WEBSITE_RUN_FROM_PACKAGE"                     = "https://${data.azurerm_storage_account.stg.name}.blob.core.windows.net/${azurerm_storage_container.data_move_processor.name}/${azurerm_storage_blob.data_move_processor.name}"
-    # "WEBSITE_RUN_FROM_PACKAGE_BLOB_MI_RESOURCE_ID" = azurerm_user_assigned_identity.function_app_data_move_processor_identity.id
-    "MANAGED_IDENTITY_CLIENT_ID"     = azurerm_user_assigned_identity.function_app_data_move_processor_identity.client_id
-    "WEBSITE_TIME_ZONE"              = local.execution_tizezone
-    "SUBSCRIPTION_ID"                = data.azurerm_client_config.current.subscription_id
-    "ENVIRONMENT_PREFIX"             = local.environment_prefix
-    "APPINSIGHTS_INSTRUMENTATIONKEY" = data.azurerm_application_insights.core.instrumentation_key
-    # "FUNCTIONS_WORKER_RUNTIME"                     = "python"
+    "MANAGED_IDENTITY_CLIENT_ID"            = azurerm_user_assigned_identity.function_app_data_move_processor_identity.client_id
+    "WEBSITE_TIME_ZONE"                     = local.execution_tizezone
+    "SUBSCRIPTION_ID"                       = data.azurerm_client_config.current.subscription_id
+    "ENVIRONMENT_PREFIX"                    = local.environment_prefix
+    "APPINSIGHTS_INSTRUMENTATIONKEY"        = data.azurerm_application_insights.core.instrumentation_key
     "CORE_STORAGE_ACCESS_KEY"               = data.azurerm_storage_account.stg.primary_access_key
     "SERVICE_BUS_FULLY_QUALIFIED_NAMESPACE" = local.fully_qualified_namespace
     "SERVICE_BUS_DATA_MOVE_QUEUE_NAME"      = azurerm_servicebus_queue.data_move_requests.name
+    "WEBSITES_ENABLE_APP_SERVICE_STORAGE"   = false
   }
 
   # We are running a Python app.
@@ -115,7 +95,7 @@ resource "azurerm_linux_function_app" "data_move_processor" {
   }
 
   # This is the subnet used for VNet integration.
-  virtual_network_subnet_id = var.web_app_subnet_id
+  # virtual_network_subnet_id = var.web_app_subnet_id
 }
 
 resource "azurerm_monitor_diagnostic_setting" "data_move_processor" {
