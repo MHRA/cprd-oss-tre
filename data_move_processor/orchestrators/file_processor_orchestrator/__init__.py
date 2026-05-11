@@ -2,31 +2,38 @@ import azure.durable_functions as df
 
 def orchestrator(context: df.DurableOrchestrationContext):
 
-    data = context.get_input()
-    file = data["file"]
-    req = data["req"]
-    tid = data["transaction_id"]
+    data = context.get_input() or {}
 
-    retry = 0
+    file = data.get("file")
+    req = data.get("req")
+    tid = data.get("transaction_id")
+
+    if not file or not req or not tid:
+        return False
+
     max_retry = 3
+    retry = 0
     ok = False
 
     while retry < max_retry:
-        try:
-            result = yield context.call_activity("copy_blob", {"file": file, "req": req})
-            ok = result.get("success", False) if isinstance(result, dict) else bool(result)
-            
-            if ok:
-                break
-        except Exception as e:
-            ok = False
-        
+        result = yield context.call_activity(
+            "copy_blob",
+            {"file": file, "req": req}
+        )
+
+        ok = isinstance(result, dict) and result.get("success", False)
+        if ok:
+            break
+
         retry += 1
 
-    # Log file status
     yield context.call_activity(
         "log_file_status",
-        (tid, file, "SUCCESS" if ok else "FAILED")
+        {
+            "transaction_id": tid,
+            "file": file,
+            "status": "SUCCESS" if ok else "FAILED"
+        }
     )
 
     return ok

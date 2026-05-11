@@ -1,22 +1,32 @@
-# To enable ssh & remote debugging on app service change the base image to the one below
-# FROM mcr.microsoft.com/azure-functions/python:4-python3.8-appservice as base
-FROM mcr.microsoft.com/azure-functions/python:4-python3.10 as base
-RUN apt-get update && apt-get install ca-certificates -y
-COPY ZscalerRootCertificate-2048-SHA256.crt /usr/local/share/ca-certificates/ZscalerRootCertificate-2048-SHA256.crt
-RUN /usr/sbin/update-ca-certificates
-COPY requirements.txt /
-RUN pip install --no-cache-dir -r /requirements.txt
+FROM mcr.microsoft.com/azure-functions/python:4-python3.11
 
-
-
-FROM base as runtime
+# Trust Zscaler cert
+RUN apt-get update && apt-get install -y ca-certificates
+COPY ZscalerRootCertificate-2048-SHA256.crt /usr/local/share/ca-certificates/
+RUN update-ca-certificates
 
 ENV AzureWebJobsScriptRoot=/home/site/wwwroot \
     AzureFunctionsJobHost__Logging__Console__IsEnabled=true \
-    FUNCTIONS_WORKER_RUNTIME=python \
-    PYTHON_ENABLE_WORKER_EXTENSIONS=1
+    FUNCTIONS_WORKER_RUNTIME=python
+
 
 WORKDIR /home/site/wwwroot
 
-COPY . .
+
+COPY host.json ./host.json
+
+COPY app.py ./app.py
+COPY function_app.py ./function_app.py
+
+
+COPY durable_app.py ./durable_app.py
+
+
+COPY activities ./activities
+COPY orchestrators ./orchestrators
+COPY shared ./shared
+COPY requirements.txt ./requirements.txt
+
+
+RUN pip install --no-cache-dir -r requirements.txt
 

@@ -1,8 +1,28 @@
-import azure.functions as func
 import azure.durable_functions as df
+from datetime import datetime, timezone
+
 from shared.cosmos_client import update_transaction
 
+
 @df.activity_trigger(input_name="data")
-def update_transaction_status(data: tuple) -> None:
-    tid, status = data
-    update_transaction(tid, {"status": status, "updatedWhen": str(func.datetime.datetime.utcnow())})
+def update_transaction_status(data: dict) -> None:
+
+
+    if not isinstance(data, dict):
+        return
+
+    transaction_id = data.get("transaction_id")
+    partition_key = data.get("partition_key") or transaction_id
+    status = data.get("status")
+
+    if not transaction_id or not status:
+        return
+
+    update_transaction(
+        item_id=transaction_id,
+        partition_key=partition_key,
+        patch={
+            "status": status,
+            "updatedWhen": datetime.now(timezone.utc).isoformat(),
+        },
+    )

@@ -1,8 +1,20 @@
-import azure.functions as func
 import azure.durable_functions as df
+from typing import Optional
+
 from shared.blob_client import acquire_container_lease
 
+
 @df.activity_trigger(input_name="req")
-def acquire_lock(req: dict) -> str:
-    lease_id = acquire_container_lease(req["workspaceId"], req["protocol_id"])
-    return lease_id  # Return lease_id if acquired, None if failed
+def acquire_lock(req: dict) -> Optional[str]:
+
+
+    if not isinstance(req, dict):
+        return None
+
+    workspace_id = req.get("workspaceId")
+    protocol_id = req.get("protocol_id")
+
+    if not workspace_id or not protocol_id:
+        return None
+
+    return acquire_container_lease(workspace_id, protocol_id)

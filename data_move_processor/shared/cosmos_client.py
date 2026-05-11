@@ -1,7 +1,7 @@
 import logging
 import os
 from datetime import datetime, timezone
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 from azure.cosmos import CosmosClient
 from azure.identity import DefaultAzureCredential
@@ -15,13 +15,16 @@ from shared.config import (
     get_tre_id,
 )
 
-# ------------------------------------------------------------------------------
-# Credential handling
-# ------------------------------------------------------------------------------
+# ==========================================================
+# Credential handling (SAFE)
+# ==========================================================
 
 def get_credential() -> DefaultAzureCredential:
-
-    managed_identity_client_id = os.environ.get("MANAGED_IDENTITY_CLIENT_ID")
+    """
+    Returns DefaultAzureCredential using managed identity if configured.
+    SAFE: does not execute until called.
+    """
+    managed_identity_client_id = os.getenv("MANAGED_IDENTITY_CLIENT_ID")
 
     if managed_identity_client_id:
         logging.info(
@@ -37,23 +40,30 @@ def get_credential() -> DefaultAzureCredential:
     return DefaultAzureCredential()
 
 
-# ------------------------------------------------------------------------------
-# Cosmos client initialization
-# ------------------------------------------------------------------------------
+# ==========================================================
+# Cosmos client factory (LAZY)
+# ==========================================================
 
-credential: DefaultAzureCredential = get_credential()
+def get_container():
+    """
+    Lazily create Cosmos container client.
+    SAFE: No SDK objects created at import time.
+    """
+    client = CosmosClient(
+        url=COSMOS_ENDPOINT.format(get_tre_id()),
+        credential=get_credential(),
+    )
 
-client = CosmosClient(
-    url=COSMOS_ENDPOINT.format(get_tre_id()),
-    credential=credential,
-)
+    database = client.get_database_client(COSMOS_DB)
+    return database.get_container_client(COSMOS_CONTAINER)
 
-database = client.get_database_client(COSMOS_DB)
-container = database.get_container_client(COSMOS_CONTAINER)
 
+# ==========================================================
+# CRUD Operations
+# ==========================================================
 
 def create_transaction(document: Dict[str, Any]):
-
+    container = get_container()
     return container.create_item(body=document)
 
 
@@ -62,6 +72,7 @@ def update_transaction(
     partition_key: str,
     patch: Dict[str, Any],
 ):
+    container = get_container()
 
     patch_operations = [
         {"op": "add", "path": f"/{key}", "value": value}
@@ -76,9 +87,7 @@ def update_transaction(
 
 
 def get_transaction(item_id: str, partition_key: str):
-    """
-    Reads a single transaction item.
-    """
+    container = get_container()
     return container.read_item(
         item=item_id,
         partition_key=partition_key,
@@ -90,6 +99,7 @@ def log_file_status(
     file_name: str,
     status: str,
 ):
+    container = get_container()
 
     item = {
         "id": f"{transaction_id}:{file_name}",
@@ -103,32 +113,46 @@ def log_file_status(
 
 
 def delete_transaction(item_id: str, partition_key: str):
-
+    container = get_container()
     return container.delete_item(
         item=item_id,
         partition_key=partition_key,
     )
 
 
-def get_workspace_type(workspace_id: str):
+# ==========================================================
+# Workspace Type Resolution
+# ==========================================================
+
+def get_workspace_type(workspace_id: str) -> str:
+    """
+    Returns workspace suffix ('a' or 'e') based on Cosmos metadata.
+    SAFE and deterministic.
+    """
+    container = get_container()
+
     query = f"SELECT * FROM {COSMOS_CONTAINER} r WHERE r.id = @workspaceId"
-    parameters = [ dict(name='@workspaceId', value=workspace_id) ]
-    results = container.query_items(
-        query=query,
-        parameters=parameters
+    parameters = [{"name": "@workspaceId", "value": workspace_id}]
+
+    results = list(
+        container.query_items(
+            query=query,
+            parameters=parameters,
+            enable_cross_partition_query=True,
+        )
     )
 
-    for item in results:
-        if item['templateName'] == A_MSL_WORKSPACE:
-            suffix = "a"
-        elif item['templateName'] == E_MSL_WORKSPACE:
-            suffix = "e"
-        else:
-            logging.error(
-               "Unable do define Workspace Type for workspace %s with workspace type %s",
-               workspace_id,
-               item['templateName']
-            )
-            raise
+    if not results:
+        raise RuntimeError(f"Workspace {workspace_id} not found in Cosmos DB")
 
-    return suffix
+    template_name = results[0].get("templateName")
+
+    if template_name == A_MSL_WORKSPACE:
+        return "a"
+
+    if template_name == E_MSL_WORKSPACE:
+        return "e"
+
+    raise RuntimeError(
+        f"Unable to determine workspace type for {workspace_id} ({template_name})"
+    )

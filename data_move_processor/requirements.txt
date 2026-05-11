@@ -2,7 +2,8 @@
 # Ref: aka.ms/functions-azure-monitor-python
 # azure-monitor-opentelemetry
 
-azure-functions==1.20.0
+
+azure-functions==1.21.3
 azure-functions-durable==1.2.9
 azure-cosmos
 azure-storage-blob
