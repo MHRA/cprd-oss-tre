@@ -15,11 +15,9 @@ WORKDIR /home/site/wwwroot
 
 COPY host.json ./host.json
 
-COPY app.py ./app.py
 COPY function_app.py ./function_app.py
 
 
-COPY durable_app.py ./durable_app.py
 
 
 COPY activities ./activities
