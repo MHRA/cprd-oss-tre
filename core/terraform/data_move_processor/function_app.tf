@@ -86,7 +86,6 @@ resource "azurerm_linux_function_app" "data_move_processor" {
     application_insights_key                      = data.azurerm_application_insights.core.instrumentation_key
 
     application_stack {
-      # python_version = "3.11"
       docker {
         registry_url = var.docker_registry_server
         image_name   = var.data_move_processor_image_repository
@@ -94,9 +93,6 @@ resource "azurerm_linux_function_app" "data_move_processor" {
       }
     }
   }
-
-  # This is the subnet used for VNet integration.
-  # virtual_network_subnet_id = var.web_app_subnet_id
 }
 
 resource "azurerm_monitor_diagnostic_setting" "data_move_processor" {
