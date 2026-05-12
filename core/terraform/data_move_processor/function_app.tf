@@ -71,6 +71,7 @@ resource "azurerm_linux_function_app" "data_move_processor" {
     "SERVICE_BUS_FULLY_QUALIFIED_NAMESPACE" = local.fully_qualified_namespace
     "SERVICE_BUS_DATA_MOVE_QUEUE_NAME"      = azurerm_servicebus_queue.data_move_requests.name
     "WEBSITES_ENABLE_APP_SERVICE_STORAGE"   = false
+    "TASKHUB_NAME"                          = "DataMoveProcessor${upper(var.tre_id)}"
   }
 
   # We are running a Python app.
