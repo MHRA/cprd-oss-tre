@@ -1,9 +1,6 @@
-import azure.durable_functions as df
-
 from shared.cosmos_client import log_file_status as log_file_status_func
 
 
-@df.activity_trigger(input_name="data")
 def log_file_status(data: dict) -> None:
     """
     Logs per-file processing status to Cosmos DB.

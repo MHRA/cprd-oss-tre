@@ -1,10 +1,8 @@
-import azure.durable_functions as df
 from typing import Optional
 
 from shared.blob_client import acquire_container_lease
 
 
-@df.activity_trigger(input_name="req")
 def acquire_lock(req: dict) -> Optional[str]:
 
 

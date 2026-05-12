@@ -1,9 +1,6 @@
-import azure.durable_functions as df
-
 from shared.blob_client import release_container_lease
 
 
-@df.activity_trigger(input_name="data")
 def release_lock(data: dict) -> None:
     """
     Releases a container lease.

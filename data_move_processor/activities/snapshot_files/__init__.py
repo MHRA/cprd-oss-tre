@@ -1,8 +1,6 @@
-import azure.durable_functions as df
 from typing import List
 
 
-@df.activity_trigger(input_name="req")
 def snapshot_files(req: dict) -> List[str]:
 
 

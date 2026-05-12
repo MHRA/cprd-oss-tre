@@ -1,9 +1,6 @@
-import azure.durable_functions as df
-
 from shared.blob_client import delete_blob
 
 
-@df.activity_trigger(input_name="file_data")
 def delete_source_files(file_data: dict) -> None:
 
     if not isinstance(file_data, dict):

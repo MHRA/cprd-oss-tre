@@ -77,4 +77,5 @@ def orchestrator(context: df.DurableOrchestrationContext):
 
     return "DONE"
 
-main = df.Orchestrator.create(orchestrator)
+# Export for v2 SDK - decorator-based approach
+main = orchestrator

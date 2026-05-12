@@ -8,3 +8,4 @@ azure-functions-durable==1.2.9
 azure-cosmos
 azure-storage-blob
 azure-servicebus
+azure-identity

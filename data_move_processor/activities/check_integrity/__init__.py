@@ -1,9 +1,6 @@
-import azure.durable_functions as df
-
 from shared.blob_client import check_container_integrity
 
 
-@df.activity_trigger(input_name="file_data")
 def check_integrity(file_data: dict) -> bool:
 
     if not isinstance(file_data, dict):

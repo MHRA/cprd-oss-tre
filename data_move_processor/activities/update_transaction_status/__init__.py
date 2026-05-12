@@ -1,10 +1,8 @@
-import azure.durable_functions as df
 from datetime import datetime, timezone
 
 from shared.cosmos_client import update_transaction
 
 
-@df.activity_trigger(input_name="data")
 def update_transaction_status(data: dict) -> None:
 
 

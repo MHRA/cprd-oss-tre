@@ -1,9 +1,6 @@
-import azure.durable_functions as df
-
 from shared.service_bus_client import send_message
 
 
-@df.activity_trigger(input_name="message")
 async def send_status_event(message: dict) -> None:
 
 

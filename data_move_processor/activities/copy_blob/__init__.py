@@ -1,7 +1,5 @@
-import azure.durable_functions as df
 from shared.blob_client import copy_blob as copy_blob_func
 
-@df.activity_trigger(input_name="file_data")
 def copy_blob(file_data: dict) -> dict:
 
 
