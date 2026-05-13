@@ -58,20 +58,22 @@ resource "azurerm_linux_function_app" "data_move_processor" {
   storage_account_access_key = data.azurerm_storage_account.stg.primary_access_key
   service_plan_id            = azurerm_service_plan.data_move.id
   builtin_logging_enabled    = false
+  virtual_network_subnet_id  = var.data_move_processor_subnet_id
+  https_only                 = true
 
   # This configuration makes the Function App runs from a file
   # stored in tha blob storage container.
   app_settings = {
-    "MANAGED_IDENTITY_CLIENT_ID"            = azurerm_user_assigned_identity.function_app_data_move_processor_identity.client_id
-    "WEBSITE_TIME_ZONE"                     = local.execution_tizezone
-    "SUBSCRIPTION_ID"                       = data.azurerm_client_config.current.subscription_id
-    "ENVIRONMENT_PREFIX"                    = local.environment_prefix
-    "APPINSIGHTS_INSTRUMENTATIONKEY"        = data.azurerm_application_insights.core.instrumentation_key
-    "CORE_STORAGE_ACCESS_KEY"               = data.azurerm_storage_account.stg.primary_access_key
-    "SERVICE_BUS_FULLY_QUALIFIED_NAMESPACE" = local.fully_qualified_namespace
-    "SERVICE_BUS_DATA_MOVE_QUEUE_NAME"      = azurerm_servicebus_queue.data_move_requests.name
-    "WEBSITES_ENABLE_APP_SERVICE_STORAGE"   = false
-    "TASKHUB_NAME"                          = "DataMoveProcessor${upper(var.tre_id)}"
+    "MANAGED_IDENTITY_CLIENT_ID"          = azurerm_user_assigned_identity.function_app_data_move_processor_identity.client_id
+    "WEBSITE_TIME_ZONE"                   = local.execution_tizezone
+    "SUBSCRIPTION_ID"                     = data.azurerm_client_config.current.subscription_id
+    "ENVIRONMENT_PREFIX"                  = local.environment_prefix
+    "APPINSIGHTS_INSTRUMENTATIONKEY"      = data.azurerm_application_insights.core.instrumentation_key
+    "CORE_STORAGE_ACCESS_KEY"             = data.azurerm_storage_account.stg.primary_access_key
+    "AzureWebJobsServiceBus"              = var.servicebus_namespace.default_primary_connection_string
+    "SERVICE_BUS_DATA_MOVE_QUEUE_NAME"    = azurerm_servicebus_queue.data_move_requests.name
+    "WEBSITES_ENABLE_APP_SERVICE_STORAGE" = false
+    "TASKHUB_NAME"                        = "DataMoveProcessor${upper(var.tre_id)}"
   }
 
   # We are running a Python app.

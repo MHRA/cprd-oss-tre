@@ -219,9 +219,7 @@ module "data_move_processor" {
   tre_id                               = var.tre_id
   location                             = var.location
   resource_group_name                  = azurerm_resource_group.core.name
-  shared_subnet_id                     = module.network.shared_subnet_id
-  web_app_subnet_id                    = module.network.web_app_subnet_id
-  blob_core_dns_zone_id                = module.network.blob_core_dns_zone_id
+  data_move_processor_subnet_id        = module.network.data_move_processor_subnet_id
   tre_core_tags                        = local.tre_core_tags
   core_storage_name                    = azurerm_storage_account.stg.name
   cosmosdb_account_id                  = azurerm_cosmosdb_account.tre_db_account.id

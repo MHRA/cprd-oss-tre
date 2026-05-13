@@ -5,7 +5,7 @@ locals {
   core_vng_type            = "Microsoft.Network/virtualNetworkGateways"
   express_route_vng_name   = "exp-${var.tre_id}"
   express_route_circuit_id = "/subscriptions/f6cff649-c159-432a-bfb9-86c9249de4d1/resourceGroups/AGENCY-RG-000100/providers/Microsoft.Network/expressRouteCircuits/apazr-xr-uks"
-  authorization_key        = {
+  authorization_key = {
     "cprddev"     = "6b48de5f-29b4-41b9-aa00-485acfc49209",
     "cprdtest"    = "6b26865b-fa38-4aea-a910-b3df0154393f",
     "cprdstaging" = "d4805db2-c19f-4d1d-9a73-abecebca335e",

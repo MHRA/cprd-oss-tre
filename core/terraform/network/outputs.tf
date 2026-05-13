@@ -26,6 +26,10 @@ output "airlock_processor_subnet_id" {
   value = azurerm_subnet.airlock_processor.id
 }
 
+output "data_move_processor_subnet_id" {
+  value = azurerm_subnet.data_move_processor.id
+}
+
 output "airlock_storage_subnet_id" {
   value = azurerm_subnet.airlock_storage.id
 }

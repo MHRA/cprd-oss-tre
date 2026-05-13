@@ -23,8 +23,9 @@ locals {
   gateway_subnet_address_prefix                    = local.core_services_vnet_subnets[12] # .192 - .254
 
   # Secondary address space
-  secondar_services_vnet_subnets               = cidrsubnets(var.secondary_address_space, 3)
-  synapse_shared_service_subnet_address_prefix = local.secondar_services_vnet_subnets[0] # .0 - .15
+  secondar_services_vnet_subnets               = cidrsubnets(var.secondary_address_space, 3, 3)
+  synapse_shared_service_subnet_address_prefix = local.secondar_services_vnet_subnets[0] # .0 - .32
+  data_move_processor_subnet_address_prefix    = local.secondar_services_vnet_subnets[1] # .0 - .32
 
   tre_core_tags = {
     tre_id              = var.tre_id

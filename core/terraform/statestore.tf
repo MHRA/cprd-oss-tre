@@ -100,7 +100,7 @@ resource "azurerm_cosmosdb_sql_role_assignment" "cosmos_data_access_core_api" {
   resource_group_name = azurerm_cosmosdb_account.tre_db_account.resource_group_name
   account_name        = azurerm_cosmosdb_account.tre_db_account.name
   # This is the ID for "Cosmos DB Built-in Data Reader" built-in role.
-  role_definition_id  = "${azurerm_cosmosdb_account.tre_db_account.id}/sqlRoleDefinitions/00000000-0000-0000-0000-000000000001" # GUID
-  principal_id         = azurerm_user_assigned_identity.id.principal_id
-  scope                = azurerm_cosmosdb_account.tre_db_account.id
+  role_definition_id = "${azurerm_cosmosdb_account.tre_db_account.id}/sqlRoleDefinitions/00000000-0000-0000-0000-000000000001" # GUID
+  principal_id       = azurerm_user_assigned_identity.id.principal_id
+  scope              = azurerm_cosmosdb_account.tre_db_account.id
 }

@@ -182,10 +182,16 @@ resource "azurerm_subnet_network_security_group_association" "airlock_processor"
   depends_on                = [azurerm_subnet_network_security_group_association.resource_processor]
 }
 
+resource "azurerm_subnet_network_security_group_association" "data_move_processor" {
+  subnet_id                 = azurerm_subnet.data_move_processor.id
+  network_security_group_id = azurerm_network_security_group.default_rules.id
+  depends_on                = [azurerm_subnet_network_security_group_association.airlock_processor]
+}
+
 resource "azurerm_subnet_network_security_group_association" "airlock_storage" {
   subnet_id                 = azurerm_subnet.airlock_storage.id
   network_security_group_id = azurerm_network_security_group.default_rules.id
-  depends_on                = [azurerm_subnet_network_security_group_association.airlock_processor]
+  depends_on                = [azurerm_subnet_network_security_group_association.data_move_processor]
 }
 
 resource "azurerm_subnet_network_security_group_association" "airlock_events" {

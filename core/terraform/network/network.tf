@@ -94,6 +94,29 @@ resource "azurerm_subnet" "airlock_processor" {
   service_endpoints = ["Microsoft.Storage"]
 }
 
+resource "azurerm_subnet" "data_move_processor" {
+  name                 = "DataMoveProcessorSubnet"
+  virtual_network_name = azurerm_virtual_network.core.name
+  resource_group_name  = var.resource_group_name
+  address_prefixes     = [local.data_move_processor_subnet_address_prefix]
+  # notice that private endpoints do not adhere to NSG rules
+  private_endpoint_network_policies_enabled = false
+  depends_on                                = [azurerm_subnet.airlock_processor]
+
+  delegation {
+    name = "delegation"
+
+    service_delegation {
+      name    = "Microsoft.Web/serverFarms"
+      actions = ["Microsoft.Network/virtualNetworks/subnets/action"]
+    }
+  }
+
+  # Todo: needed as we want to open the fw for this subnet in some of the airlock storages (export inprogress)
+  # https://github.com/microsoft/AzureTRE/issues/2098
+  service_endpoints = ["Microsoft.Storage"]
+}
+
 resource "azurerm_subnet" "airlock_notification" {
   name                 = "AirlockNotifiactionSubnet"
   virtual_network_name = azurerm_virtual_network.core.name
@@ -101,7 +124,7 @@ resource "azurerm_subnet" "airlock_notification" {
   address_prefixes     = [local.airlock_notifications_subnet_address_prefix]
   # notice that private endpoints do not adhere to NSG rules
   private_endpoint_network_policies_enabled = false
-  depends_on                                = [azurerm_subnet.airlock_processor]
+  depends_on                                = [azurerm_subnet.data_move_processor]
 
   delegation {
     name = "delegation"
@@ -171,15 +194,6 @@ resource "azurerm_subnet" "synapse_shared_service" {
   address_prefixes     = [local.synapse_shared_service_subnet_address_prefix]
   depends_on           = [azurerm_subnet.firewall_management]
   service_endpoints    = ["Microsoft.Storage"]
-
-  # delegation {
-  #   name = "delegation"
-
-  #   service_delegation {
-  #     name    = "Microsoft.DBforMySQL/flexibleServers"
-  #     actions = ["Microsoft.Network/virtualNetworks/subnets/action"]
-  #   }
-  # }
 }
 
 resource "azurerm_ip_group" "resource_processor" {
