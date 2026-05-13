@@ -7,7 +7,7 @@ SERVICE_BUS_CONN_STR = "YOUR_SERVICE_BUS_CONNECTION"
 
 COSMOS_DB = "AzureTRE"
 COSMOS_CONTAINER = "DataMoveTransactions"
-QUEUE_NAME = "datamove-events"
+QUEUE_NAME = "data-move-requests"
 
 # Container naming patterns
 STORAGE_ACCOUNT_NAME_WORKSPACE_RESOURCE_GROUP_SSBS = "ssbsws{}{}"
@@ -17,8 +17,10 @@ SERVICE_BUS_FULLY_QUALIFIED_NAMESPACE = os.getenv(
     "SERVICE_BUS_FULLY_QUALIFIED_NAMESPACE", ""
 )
 SERVICE_BUS_DATA_MOVE_QUEUE_NAME = os.getenv(
-    "SERVICE_BUS_DATA_MOVE_QUEUE_NAME", ""
+    "SERVICE_BUS_DATA_MOVE_QUEUE_NAME", "data-move-requests"
 )
+
+SERVICE_BUS_CONNECTION_NAME = "AzureWebJobsServiceBus"
 
 A_MSL_WORKSPACE = "tre-workspace-a-msl"
 E_MSL_WORKSPACE = "tre-workspace-e-msl"

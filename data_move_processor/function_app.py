@@ -1,4 +1,5 @@
-print(">>> function_app.py LOADED <<<")
+import logging
+
 import azure.functions as func
 import azure.durable_functions as df
 import json
@@ -20,23 +21,26 @@ from activities.release_lock import release_lock as release_lock_impl
 from activities.send_status_event import send_status_event as send_status_event_impl
 
 # Config
-from shared.config import SERVICE_BUS_DATA_MOVE_QUEUE_NAME, SERVICE_BUS_FULLY_QUALIFIED_NAMESPACE
+from shared.config import SERVICE_BUS_DATA_MOVE_QUEUE_NAME, SERVICE_BUS_CONNECTION_NAME
 
 app = df.DFApp()
 
 QUEUE_NAME = SERVICE_BUS_DATA_MOVE_QUEUE_NAME or "datamove-events"
-SERVICE_BUS_CONNECTION = SERVICE_BUS_FULLY_QUALIFIED_NAMESPACE or "SERVICE_BUS_CONN_STR"
+# Connection parameter must be a reference to an app setting, not a namespace name
+SERVICE_BUS_CONNECTION = SERVICE_BUS_CONNECTION_NAME
 
 
-# ✅ Service Bus trigger - ENTRY POINT
+
 @app.service_bus_queue_trigger(
     arg_name="msg",
     queue_name=QUEUE_NAME,
-    connection=SERVICE_BUS_CONNECTION
+    connection=SERVICE_BUS_CONNECTION,
+    is_sessions_enabled=True
 )
 @app.durable_client_input(client_name="client")
 async def data_move_trigger(msg: func.ServiceBusMessage, client):
 
+    logging.info("Received message: %s", msg.get_body().decode("utf-8"))
     body = json.loads(msg.get_body().decode("utf-8"))
 
     instance_id = await client.start_new(
@@ -48,7 +52,7 @@ async def data_move_trigger(msg: func.ServiceBusMessage, client):
     return instance_id
 
 
-# ✅ ORCHESTRATORS - Decorate once here (names MUST match start_new / call_sub_orchestrator)
+
 @app.orchestration_trigger(context_name="context")
 def data_move_orchestrator(context):
     return data_move_orch_impl(context)
@@ -59,7 +63,7 @@ def file_processor_orchestrator(context):
     return file_processor_orch_impl(context)
 
 
-# ✅ ACTIVITIES - Decorate once here (names MUST match call_activity)
+
 @app.activity_trigger(input_name="input")
 def check_preconditions(input):
     return check_preconditions_impl(input)
