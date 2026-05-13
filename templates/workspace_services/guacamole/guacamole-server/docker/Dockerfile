@@ -38,7 +38,7 @@ RUN JAVA_ARCHIVE=java.tar.gz && \
 
 ENV CATALINA_BASE=/usr/share/tomcat9/
 RUN TOMCAT_ARCHIVE=tomcat.tar.gz && \
-    TOMCAT_VER=9.0.70 && \
+    TOMCAT_VER=9.0.118 && \
     wget -O "$TOMCAT_ARCHIVE" -N "https://archive.apache.org/dist/tomcat/tomcat-9/v${TOMCAT_VER}/bin/apache-tomcat-${TOMCAT_VER}.tar.gz" --progress=dot:giga && \
     tar xzf "$TOMCAT_ARCHIVE" && \
     rm -f "$TOMCAT_ARCHIVE" && \

@@ -98,8 +98,6 @@ async def build_porter_command(config, logger, msg_body, custom_action=False):
                         f" --credential-set aad_auth"
                         ]
 
-    logging.info(f'command_line content: {command_line}')
-
     return command_line
 
 

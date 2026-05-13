@@ -71,6 +71,7 @@ resource "azurerm_linux_function_app" "data_move_processor" {
     "SERVICE_BUS_FULLY_QUALIFIED_NAMESPACE" = local.fully_qualified_namespace
     "SERVICE_BUS_DATA_MOVE_QUEUE_NAME"      = azurerm_servicebus_queue.data_move_requests.name
     "WEBSITES_ENABLE_APP_SERVICE_STORAGE"   = false
+    "TASKHUB_NAME"                          = "DataMoveProcessor${upper(var.tre_id)}"
   }
 
   # We are running a Python app.
@@ -85,7 +86,6 @@ resource "azurerm_linux_function_app" "data_move_processor" {
     application_insights_key                      = data.azurerm_application_insights.core.instrumentation_key
 
     application_stack {
-      # python_version = "3.11"
       docker {
         registry_url = var.docker_registry_server
         image_name   = var.data_move_processor_image_repository
@@ -93,9 +93,6 @@ resource "azurerm_linux_function_app" "data_move_processor" {
       }
     }
   }
-
-  # This is the subnet used for VNet integration.
-  # virtual_network_subnet_id = var.web_app_subnet_id
 }
 
 resource "azurerm_monitor_diagnostic_setting" "data_move_processor" {
