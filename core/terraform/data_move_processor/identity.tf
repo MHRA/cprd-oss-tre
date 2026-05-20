@@ -25,12 +25,11 @@ resource "azurerm_role_assignment" "assign_identity_reader" {
 resource "azurerm_cosmosdb_sql_role_assignment" "cosmos_data_access_data_move_processor" {
   resource_group_name = var.resource_group_name
   account_name        = "cosmos-${var.tre_id}"
-  # This is the ID for "Cosmos DB Built-in Data Reader" built-in role.
-  role_definition_id = "${var.cosmosdb_account_id}/sqlRoleDefinitions/00000000-0000-0000-0000-000000000001" # GUID
+  # This is the ID for "Cosmos DB Built-in Data Contributor" built-in role.
+  role_definition_id = "${var.cosmosdb_account_id}/sqlRoleDefinitions/00000000-0000-0000-0000-000000000002" # GUID
   principal_id       = azurerm_user_assigned_identity.function_app_data_move_processor_identity.principal_id
   scope              = var.cosmosdb_account_id
 }
-
 
 resource "azurerm_role_assignment" "acrpull_role" {
   scope                = data.azurerm_container_registry.mgmt_acr.id
