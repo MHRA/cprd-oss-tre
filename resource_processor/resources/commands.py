@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+import os
 import base64
 
 from resources.helpers import get_installation_id
@@ -24,9 +25,7 @@ def azure_acr_login_command(config):
 
 async def build_porter_command(config, logger, msg_body, custom_action=False):
     porter_parameter_keys = await get_porter_parameter_keys(config, logger, msg_body)
-    porter_parameters = ""
-
-    rule_collections_parameters = {}
+    param_set_entries = []
 
     if porter_parameter_keys is None:
         logger.warning("Unknown porter parameters - explain probably failed.")
@@ -61,44 +60,44 @@ async def build_porter_command(config, logger, msg_body, custom_action=False):
                     val_base64_bytes = base64.b64encode(val_bytes)
                     parameter_value = val_base64_bytes.decode("ascii")
 
-                if parameter_name == "network_rule_collections":
-                    rule_collections_parameters.update({"network_rule_collections": f" --param {parameter_name}=\"{parameter_value}\""})
-                elif parameter_name == "rule_collections":
-                    rule_collections_parameters.update({"rule_collections": f" --param {parameter_name}=\"{parameter_value}\""})
-                else:
-                    porter_parameters = porter_parameters + f" --param {parameter_name}=\"{parameter_value}\""
+                param_set_entries.append({
+                    "name": parameter_name,
+                    "source": {"value": str(parameter_value)}
+                })
 
     installation_id = get_installation_id(msg_body)
 
-    if "network_rule_collections" in rule_collections_parameters and "rule_collections" in rule_collections_parameters:
-        command_line = [f"{azure_login_command(config)} && {azure_acr_login_command(config)} && porter"
-                        # If a custom action (i.e. not install, uninstall, upgrade) we need to use 'invoke'
-                        f"{' invoke --action' if custom_action else ''}"
-                        f" {msg_body['action']} \"{installation_id}\""
-                        f" --reference {config['registry_server']}/{msg_body['name']}:v{msg_body['version']}"
-                        f" {rule_collections_parameters['network_rule_collections']} --force"
-                        f" --credential-set arm_auth"
-                        f" --credential-set aad_auth && porter"
-                        # If a custom action (i.e. not install, uninstall, upgrade) we need to use 'invoke'
-                        f"{' invoke --action' if custom_action else ''}"
-                        f" {msg_body['action']} \"{installation_id}\""
-                        f" --reference {config['registry_server']}/{msg_body['name']}:v{msg_body['version']}"
-                        f" {rule_collections_parameters['rule_collections']} --force"
-                        f" --credential-set arm_auth"
-                        f" --credential-set aad_auth"
-                        ]
-    else:
-        command_line = [f"{azure_login_command(config)} && {azure_acr_login_command(config)} && porter"
-                        # If a custom action (i.e. not install, uninstall, upgrade) we need to use 'invoke'
-                        f"{' invoke --action' if custom_action else ''}"
-                        f" {msg_body['action']} \"{installation_id}\""
-                        f" --reference {config['registry_server']}/{msg_body['name']}:v{msg_body['version']}"
-                        f" {porter_parameters} --force"
-                        f" --credential-set arm_auth"
-                        f" --credential-set aad_auth"
-                        ]
+    # Write parameters to a temporary parameter set file to avoid ARG_MAX / MAX_ARG_STRLEN limits
+    # when many workspaces are deployed and parameter values (e.g. base64-encoded rule_collections)
+    # exceed the Linux execve limits.
+    param_set_file = None
+    if param_set_entries:
+        param_set_file = f"/tmp/tre-params-{installation_id}.json"
+        param_set = {
+            "schemaType": "ParameterSet",
+            "schemaVersion": "1.0.1",
+            "name": f"tre-params-{installation_id}",
+            "namespace": "",
+            "parameters": param_set_entries
+        }
+        with open(param_set_file, "w") as f:
+            json.dump(param_set, f)
 
-    return command_line
+    command_line = [f"{azure_login_command(config)} && {azure_acr_login_command(config)} &&"
+                    # First we have to create the ParameterSet. It's loaded from a JSON file.
+                    f" porter parameters apply {param_set_file} &&"
+                    # If a custom action (i.e. not install, uninstall, upgrade) we need to use 'invoke'
+                    f" porter {' invoke --action' if custom_action else ''}"
+                    f" {msg_body['action']} \"{installation_id}\""
+                    f" --reference {config['registry_server']}/{msg_body['name']}:v{msg_body['version']}"
+                    f" --parameter-set tre-params-{installation_id}"
+                    f" --force"
+                    f" --credential-set arm_auth"
+                    f" --credential-set aad_auth"
+                    ]
+
+    logging.info(f'command_line {command_line}')
+    return (command_line, param_set_file)
 
 
 async def build_porter_command_for_outputs(msg_body):

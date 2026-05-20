@@ -5,6 +5,7 @@ import socket
 import asyncio
 import logging
 import sys
+import os
 from resources.commands import build_porter_command, build_porter_command_for_outputs
 from shared.config import get_config
 from resources.helpers import get_installation_id
@@ -161,10 +162,18 @@ async def invoke_porter_action(msg_body: dict, sb_client: ServiceBusClient, mess
 
     # Build and run porter command (flagging if its a built-in action or custom so we can adapt porter command appropriately)
     is_custom_action = action not in ["install", "upgrade", "uninstall"]
-    porter_command = await build_porter_command(config, message_logger_adapter, msg_body, is_custom_action)
+    # porter_command = await build_porter_command(config, message_logger_adapter, msg_body, is_custom_action)
+    porter_command, param_set_file = await build_porter_command(config, message_logger_adapter, msg_body, is_custom_action)
     message_logger_adapter.debug("Starting to run porter execution command...")
     returncode, _, err = await run_porter(porter_command, message_logger_adapter, config)
     message_logger_adapter.debug("Finished running porter execution command.")
+
+    # Clean up the temporary parameter set file now that the porter command has completed
+    if param_set_file:
+        try:
+            os.unlink(param_set_file)
+        except OSError:
+            pass
 
     # Handle command output
     if returncode != 0:
