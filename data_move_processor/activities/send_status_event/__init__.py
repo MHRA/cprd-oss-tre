@@ -7,5 +7,4 @@ async def send_status_event(message: dict) -> None:
     if not isinstance(message, dict):
         return
 
-    # Convert payload to string if needed
-    await send_message(message)
+

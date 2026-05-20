@@ -4,6 +4,7 @@ def orchestrator(context: df.DurableOrchestrationContext):
     req = context.get_input()
 
     transaction_id = req.get("id")
+    workspace_id = req.get("workspaceId")
     if not transaction_id:
         return "INVALID_INPUT"
 
@@ -14,8 +15,12 @@ def orchestrator(context: df.DurableOrchestrationContext):
         return "FAILED_PRECONDITIONS"
 
     yield context.call_activity(
-        "update_transaction_status",
-        (transaction_id, "STARTED")
+    "update_transaction_status",
+        {
+            "transaction_id": transaction_id,
+            "workspaceId": workspace_id,
+            "status": "STARTED"
+        }
     )
 
     try:
@@ -60,7 +65,11 @@ def orchestrator(context: df.DurableOrchestrationContext):
 
         yield context.call_activity(
             "update_transaction_status",
-            (transaction_id, status)
+            {
+                "transaction_id": transaction_id,
+                "workspaceId": workspace_id,
+                "status": status
+            }
         )
 
         yield context.call_activity(

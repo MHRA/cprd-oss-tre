@@ -46,10 +46,10 @@ async def data_move_trigger(msg: func.ServiceBusMessage, client):
     instance_id = await client.start_new(
         "data_move_orchestrator",
         None,
-        body["payload"]
+        body
     )
-
-    return instance_id
+    logging.info("Started orchestration with ID: %s", instance_id)
+    return
 
 
 

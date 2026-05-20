@@ -7,6 +7,7 @@ SERVICE_BUS_CONN_STR = "YOUR_SERVICE_BUS_CONNECTION"
 
 COSMOS_DB = "AzureTRE"
 COSMOS_CONTAINER = "DataMoveTransactions"
+COSMOS_RESOURCE_CONTAINER = "Resources"
 QUEUE_NAME = "data-move-requests"
 
 # Container naming patterns

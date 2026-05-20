@@ -9,15 +9,3 @@ def log_file_status(data: dict) -> None:
     if not isinstance(data, dict):
         return
 
-    transaction_id = data.get("transaction_id")
-    file_name = data.get("file")
-    status = data.get("status")
-
-    if not transaction_id or not file_name or not status:
-        return
-
-    log_file_status_func(
-        transaction_id=transaction_id,
-        file_name=file_name,
-        status=status,
-    )

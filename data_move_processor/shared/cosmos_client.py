@@ -10,6 +10,7 @@ from shared.config import (
     COSMOS_ENDPOINT,
     COSMOS_DB,
     COSMOS_CONTAINER,
+    COSMOS_RESOURCE_CONTAINER,
     A_MSL_WORKSPACE,
     E_MSL_WORKSPACE,
     get_tre_id,
@@ -44,7 +45,7 @@ def get_credential() -> DefaultAzureCredential:
 # Cosmos client factory (LAZY)
 # ==========================================================
 
-def get_container():
+def get_container(container_name: Optional[str] = None) -> CosmosClient:
     """
     Lazily create Cosmos container client.
     SAFE: No SDK objects created at import time.
@@ -55,7 +56,8 @@ def get_container():
     )
 
     database = client.get_database_client(COSMOS_DB)
-    return database.get_container_client(COSMOS_CONTAINER)
+    container_name = container_name or COSMOS_CONTAINER
+    return database.get_container_client(container_name)
 
 
 # ==========================================================
@@ -67,24 +69,19 @@ def create_transaction(document: Dict[str, Any]):
     return container.create_item(body=document)
 
 
-def update_transaction(
-    item_id: str,
-    partition_key: str,
-    patch: Dict[str, Any],
-):
+def update_transaction(item_id: str, partition_key: str, patch: Dict[str, Any]):
     container = get_container()
 
     patch_operations = [
-        {"op": "add", "path": f"/{key}", "value": value}
+        {"op": "replace", "path": f"/{key}", "value": value}
         for key, value in patch.items()
     ]
-
+    logging.info(f"Updating transaction {item_id} with patch: {patch_operations}")
     return container.patch_item(
         item=item_id,
         partition_key=partition_key,
         patch_operations=patch_operations,
     )
-
 
 def get_transaction(item_id: str, partition_key: str):
     container = get_container()
@@ -129,9 +126,9 @@ def get_workspace_type(workspace_id: str) -> str:
     Returns workspace suffix ('a' or 'e') based on Cosmos metadata.
     SAFE and deterministic.
     """
-    container = get_container()
+    container = get_container(COSMOS_RESOURCE_CONTAINER)
 
-    query = f"SELECT * FROM {COSMOS_CONTAINER} r WHERE r.id = @workspaceId"
+    query = f"SELECT * FROM {COSMOS_RESOURCE_CONTAINER} r WHERE r.id = @workspaceId"
     parameters = [{"name": "@workspaceId", "value": workspace_id}]
 
     results = list(

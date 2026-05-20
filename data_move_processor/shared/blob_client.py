@@ -7,6 +7,7 @@ from typing import Optional
 
 from azure.identity import DefaultAzureCredential
 from azure.storage.blob import (
+    BlobLeaseClient,
     ContainerSasPermissions,
     generate_container_sas,
     BlobServiceClient,
@@ -207,8 +208,15 @@ def check_container_integrity(
         amsl_workspace_id, dest_container, prefix="ReceiveFromExplore/"
     )
 
+
+    source_names = {b["FileName"] for b in source_blobs} if source_blobs else set()
+
+    filtered_dest_blobs = [
+        b for b in dest_blobs if b["FileName"] in source_names
+    ] if dest_blobs else []
+
     source_size = sum(b["FileSize"] for b in source_blobs) if source_blobs else 0
-    dest_size = sum(b["FileSize"] for b in dest_blobs) if dest_blobs else 0
+    dest_size = sum(b["FileSize"] for b in filtered_dest_blobs) if filtered_dest_blobs else 0
 
     return source_size == dest_size
 
@@ -217,29 +225,36 @@ def check_container_integrity(
 # Container Lease Management
 # ==========================================================
 
-def acquire_container_lease(
-    workspace_id: str,
-    container_name: str,
-    lease_id: Optional[str] = None,
-) -> Optional[str]:
-    blob_service_client = get_blob_service_client(workspace_id)
-    container_client = blob_service_client.get_container_client(container_name)
-    lease_client = container_client.get_lease_client(lease_id)
+def acquire_container_lease(workspace_id: str, container_name: str, lease_id: Optional[str] = None,) -> Optional[str]:
+    blob_service_client: BlobServiceClient = get_blob_service_client(workspace_id)
+
+    container_client: ContainerClient = blob_service_client.get_container_client(
+        container_name
+    )
+
+    lease_client = BlobLeaseClient(
+        client=container_client,
+        lease_id=lease_id,
+    )
 
     try:
         lease_client.acquire(lease_duration=-1)
         return lease_client.id
+
     except Exception as exc:
         logging.warning("Failed to acquire lease: %s", exc)
         return None
 
+def release_container_lease(workspace_id: str, container_name: str, lease_id: str) -> None:
+    blob_service_client: BlobServiceClient = get_blob_service_client(workspace_id)
 
-def release_container_lease(
-    workspace_id: str,
-    container_name: str,
-    lease_id: str,
-):
-    blob_service_client = get_blob_service_client(workspace_id)
-    container_client = blob_service_client.get_container_client(container_name)
-    lease_client = container_client.get_lease_client(lease_id)
+    container_client: ContainerClient = blob_service_client.get_container_client(
+        container_name
+    )
+
+    lease_client = BlobLeaseClient(
+        client=container_client,
+        lease_id=lease_id,
+    )
+
     lease_client.release()
