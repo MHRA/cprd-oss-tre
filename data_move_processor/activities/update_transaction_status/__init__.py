@@ -15,7 +15,7 @@ def update_transaction_status(data: dict) -> None:
 
     update_transaction(
         item_id=transaction_id,
-        partition_key=workspace_id,
+        partition_key=transaction_id,
         patch={
             "status": status,
             "updatedWhen": datetime.now(timezone.utc).isoformat(),
