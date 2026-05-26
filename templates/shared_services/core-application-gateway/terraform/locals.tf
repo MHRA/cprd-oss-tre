@@ -32,7 +32,17 @@ locals {
 
   dynamic_backend_settings_name = "bes-generic-443-with-host"
   dynamic_rewrite_set           = "rs-non-core"
-  dynamic_backends              = jsondecode(base64decode(var.backend_collection_b64))
+
+  dynamic_backends = {
+    for backend in jsondecode(base64decode(var.backend_collection_b64)) :
+    backend.name => {
+      name = backend.name
+      fqdn = regex(
+        local.url_parts_pattern,
+        "//${trimprefix(trimprefix(backend.fqdn, "http://"), "https://")}"
+      ).fqdn
+    }
+  }
 
   url_parts_pattern = "(?:(?P<scheme>[^:/?#]+):)?(?://(?P<fqdn>[^/?#:]*))?(?::(?P<port>[0-9]+))?(?P<path>[^?#]*)(?:\\?(?P<query>[^#]*))?(?:#(?P<fragment>.*))?"
 }
