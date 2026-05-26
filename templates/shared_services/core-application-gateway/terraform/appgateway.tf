@@ -57,10 +57,11 @@ resource "azurerm_application_gateway" "agw" {
   }
 
   dynamic "backend_address_pool" {
-    for_each = { for i, v in local.dynamic_backends : i => v }
+    for_each = local.dynamic_backends
+
     content {
       name  = "beap-${backend_address_pool.value.name}"
-      fqdns = [regex(local.url_parts_pattern, "//${trimprefix(trimprefix(backend_address_pool.value.fqdn, "http://"), "https://")}").fqdn]
+      fqdns = [backend_address_pool.value.fqdn]
     }
   }
 
@@ -159,7 +160,11 @@ resource "azurerm_application_gateway" "agw" {
     }
 
     dynamic "path_rule" {
-      for_each = { for i, v in local.dynamic_backends : i => v if v.fqdn != "" }
+      for_each = {
+        for name, backend in local.dynamic_backends :
+        name => backend if backend.fqdn != ""
+      }
+
       content {
         name                       = path_rule.value.name
         paths                      = ["/${path_rule.value.name}*"]
@@ -194,24 +199,30 @@ resource "azurerm_application_gateway" "agw" {
 
   dynamic "rewrite_rule_set" {
     for_each = length(local.dynamic_backends) == 0 ? [0] : [1]
+
     content {
       name = local.dynamic_rewrite_set
+
       rewrite_rule {
         name          = "X-Forwarded-Uri"
         rule_sequence = 100
+
         request_header_configuration {
           header_name  = "X-Forwarded-Uri"
           header_value = "{var_request_uri}"
         }
       }
+
       rewrite_rule {
         name          = "URL-remove-first-part"
         rule_sequence = 200
+
         condition {
           pattern     = "^\\/(.+?)\\/(.*)"
           variable    = "var_uri_path"
           ignore_case = true
         }
+
         url {
           components = "path_only"
           path       = "{var_uri_path_2}"
@@ -223,5 +234,4 @@ resource "azurerm_application_gateway" "agw" {
 
   # We don't want Terraform to revert certificate cycle changes. We assume the certificate will be renewed in keyvault.
   lifecycle { ignore_changes = [ssl_certificate, tags, zones] }
-
 }
