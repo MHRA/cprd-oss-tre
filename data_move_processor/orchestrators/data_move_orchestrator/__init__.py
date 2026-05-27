@@ -74,7 +74,7 @@ def orchestrator(context: df.DurableOrchestrationContext):
 
         yield context.call_activity(
             "send_status_event",
-            {"status": status, "transaction": transaction_id}
+            {"status": status, "transaction": transaction_id,"req": req}
         )
 
     finally:

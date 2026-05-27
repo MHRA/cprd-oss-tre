@@ -27,6 +27,12 @@ A_MSL_WORKSPACE = "tre-workspace-a-msl"
 E_MSL_WORKSPACE = "tre-workspace-e-msl"
 EMPTY_FILE_NAME = ".emptyFile"
 
+NOTIFY_UK_TEMPLATE_ID: str = os.getenv("NOTIFY_UK_TEMPLATE_ID", default="")
+NOTIFY_UK_URL: str = os.getenv("NOTIFY_UK_URL", default="")
+NOTIFY_UK_SECRET: str = os.getenv("NOTIFY_UK_SECRET", default="")
+NOTIFY_UK_ISS_ID: str = os.getenv("NOTIFY_UK_ISS_ID", default="")
+NOTIFY_UK_EMAIL_SUBJECT_TAG: str = os.getenv("NOTIFY_UK_EMAIL_SUBJECT_TAG", default="")
+
 def get_tre_id():
     tre_id = os.getenv("TRE_ID")
     if not tre_id:
