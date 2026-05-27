@@ -201,25 +201,61 @@ def check_container_integrity(
     source_container: str,
     amsl_workspace_id: str,
 ) -> bool:
+
     dest_container = source_container[:-1] + "a"
 
-    source_blobs = list_blobs(workspace_id, source_container, prefix="SendToAnalyse/")
-    dest_blobs = list_blobs(
-        amsl_workspace_id, dest_container, prefix="ReceiveFromExplore/"
+    source_blobs = list_blobs(
+        workspace_id,
+        source_container,
+        prefix="SendToAnalyse/"
     )
 
+    dest_blobs = list_blobs(
+        amsl_workspace_id,
+        dest_container,
+        prefix="ReceiveFromExplore/"
+    )
 
-    source_names = {b["FileName"] for b in source_blobs} if source_blobs else set()
+    logging.info(
+        f"Source blobs: {[b['FileName'] for b in source_blobs]}"
+    )
+
+    logging.info(
+        f"Destination blobs: {[b['FileName'] for b in dest_blobs]}"
+    )
+
+    source_names = {
+        b["FileName"].split("/")[-1]
+        for b in source_blobs
+    } if source_blobs else set()
 
     filtered_dest_blobs = [
-        b for b in dest_blobs if b["FileName"] in source_names
+        b for b in dest_blobs
+        if b["FileName"].split("/")[-1] in source_names
     ] if dest_blobs else []
 
-    source_size = sum(b["FileSize"] for b in source_blobs) if source_blobs else 0
-    dest_size = sum(b["FileSize"] for b in filtered_dest_blobs) if filtered_dest_blobs else 0
+    logging.info(
+        f"Filtered destination blobs (matching source): "
+        f"{[b['FileName'] for b in filtered_dest_blobs]}"
+    )
+
+    source_size = (
+        sum(b["FileSize"] for b in source_blobs)
+        if source_blobs else 0
+    )
+
+    dest_size = (
+        sum(b["FileSize"] for b in filtered_dest_blobs)
+        if filtered_dest_blobs else 0
+    )
+
+    logging.info(
+        f"Integrity check: "
+        f"source_size={source_size} "
+        f"dest_size={dest_size}"
+    )
 
     return source_size == dest_size
-
 
 # ==========================================================
 # Container Lease Management
