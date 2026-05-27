@@ -74,7 +74,7 @@ async def receive_message(service_bus_client, logger_adapter: logging.LoggerAdap
                             logger_adapter.info(f"Message received for resource_id={message['id']}, operation_id={message['operationId']}, step_id={message['stepId']}")
                             message_logger_adapter = get_message_id_logger(message['operationId'])  # correlate messages per operation
                             result = await invoke_porter_action(message, service_bus_client, message_logger_adapter, config)
-                        except (json.JSONDecodeError) as e:
+                        except json.JSONDecodeError as e:
                             logging.error(f"Received bad service bus resource request message: {e}")
 
                         if result:
@@ -100,7 +100,7 @@ async def receive_message(service_bus_client, logger_adapter: logging.LoggerAdap
             logger_adapter.exception("Unknown exception. Will retry...")
 
 
-async def run_porter(command, logger_adapter: logging.LoggerAdapter, config: dict):
+async def run_porter(command, logger_adapter: logging.LoggerAdapter, env: dict):
     """
     Run a Porter command
     """
@@ -108,22 +108,21 @@ async def run_porter(command, logger_adapter: logging.LoggerAdapter, config: dic
         ''.join(command),
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
-        env=config["porter_env"])
+        env=env)
 
     stdout, stderr = await proc.communicate()
-    logging.info(f'run porter exited with {proc.returncode}')
-    result_stdout = None
-    result_stderr = None
+    logging.info("run porter exited with %s", proc.returncode)
 
-    if stdout:
-        result_stdout = stdout.decode()
+    result_stdout = stdout.decode() if stdout else ""
+    result_stderr = stderr.decode() if stderr else ""
+
+    if result_stdout:
         shell_output_logger(result_stdout, '[stdout]', logger_adapter, logging.INFO)
 
-    if stderr:
-        result_stderr = stderr.decode()
+    if result_stderr:
         shell_output_logger(result_stderr, '[stderr]', logger_adapter, logging.WARN)
 
-    return (proc.returncode, result_stdout, result_stderr)
+    return proc.returncode, result_stdout, result_stderr
 
 
 def service_bus_message_generator(sb_message: dict, status: str, deployment_message: str, outputs=None):
@@ -152,20 +151,49 @@ async def invoke_porter_action(msg_body: dict, sb_client: ServiceBusClient, mess
     """
     installation_id = get_installation_id(msg_body)
     action = msg_body["action"]
+
     message_logger_adapter.info(f"{installation_id}: {action} action starting...")
+    message_logger_adapter.info(
+        "Invoking bundle=%s action=%s step=%s",
+        msg_body.get("name"),
+        msg_body.get("action"),
+        msg_body.get("stepId")
+    )
+
+    parameter_keys = list(msg_body.get("parameters", {}).keys())
+    message_logger_adapter.info("Message parameter keys: %s", parameter_keys)
+
+    for special_name in ("network_rule_collections", "rule_collections", "backend_collection"):
+        if special_name in msg_body.get("parameters", {}):
+            special_value = msg_body["parameters"][special_name]
+            if isinstance(special_value, (dict, list)):
+                size = len(json.dumps(special_value))
+                preview = json.dumps(special_value)[:500]
+            else:
+                size = len(str(special_value))
+                preview = str(special_value)[:500]
+
+            message_logger_adapter.info(
+                "Incoming special parameter '%s': type=%s size=%s preview=%s",
+                special_name,
+                type(special_value).__name__,
+                size,
+                preview
+            )
+
     sb_sender = sb_client.get_queue_sender(queue_name=config["deployment_status_queue"])
 
     # post an update message to set the status to an 'in progress' one
     resource_request_message = service_bus_message_generator(msg_body, statuses.in_progress_status_string_for[action], "Job starting")
     await sb_sender.send_messages(ServiceBusMessage(body=resource_request_message, correlation_id=msg_body["id"], session_id=msg_body["operationId"]))
-    message_logger_adapter.info(f'Sent status message for {installation_id} - {statuses.in_progress_status_string_for[action]} - Job starting')
+    message_logger_adapter.info(f"Sent status message for {installation_id} - {statuses.in_progress_status_string_for[action]} - Job starting")
 
     # Build and run porter command (flagging if its a built-in action or custom so we can adapt porter command appropriately)
     is_custom_action = action not in ["install", "upgrade", "uninstall"]
-    # porter_command = await build_porter_command(config, message_logger_adapter, msg_body, is_custom_action)
-    porter_command, param_set_file = await build_porter_command(config, message_logger_adapter, msg_body, is_custom_action)
+    porter_command, param_set_file, porter_env = await build_porter_command(config, message_logger_adapter, msg_body, is_custom_action)
+
     message_logger_adapter.debug("Starting to run porter execution command...")
-    returncode, _, err = await run_porter(porter_command, message_logger_adapter, config)
+    returncode, _, err = await run_porter(porter_command, message_logger_adapter, porter_env)
     message_logger_adapter.debug("Finished running porter execution command.")
 
     # Clean up the temporary parameter set file now that the porter command has completed
@@ -177,10 +205,11 @@ async def invoke_porter_action(msg_body: dict, sb_client: ServiceBusClient, mess
 
     # Handle command output
     if returncode != 0:
+        err = err or ""
         error_message = "Error message: " + " ".join(err.split('\n')) + "; Command executed: " + " ".join(porter_command)
 
         pass_despite_error = False
-        if "uninstall" == action and "could not find installation" in err:
+        if action == "uninstall" and "could not find installation" in err:
             message_logger_adapter.warning("The installation doesn't exist. Treating as a successful action to allow the flow to proceed.")
             pass_despite_error = True
             error_message = f"A success despite of underlying error. {error_message}"
@@ -197,17 +226,16 @@ async def invoke_porter_action(msg_body: dict, sb_client: ServiceBusClient, mess
         message_logger_adapter.info(f"{installation_id}: Porter action failed with error = {error_message}")
         return pass_despite_error
 
-    else:
-        # Get the outputs
-        # TODO: decide if this should "fail" the deployment
-        _, outputs = await get_porter_outputs(msg_body, message_logger_adapter, config)
+    # Get the outputs
+    # TODO: decide if this should "fail" the deployment
+    _, outputs = await get_porter_outputs(msg_body, message_logger_adapter, config)
 
-        success_message = f"{action} action completed successfully."
-        resource_request_message = service_bus_message_generator(msg_body, statuses.pass_status_string_for[action], success_message, outputs)
+    success_message = f"{action} action completed successfully."
+    resource_request_message = service_bus_message_generator(msg_body, statuses.pass_status_string_for[action], success_message, outputs)
 
-        await sb_sender.send_messages(ServiceBusMessage(body=resource_request_message, correlation_id=msg_body["id"], session_id=msg_body["operationId"]))
-        message_logger_adapter.info(f"Sent status message for {installation_id}: {success_message}")
-        return True
+    await sb_sender.send_messages(ServiceBusMessage(body=resource_request_message, correlation_id=msg_body["id"], session_id=msg_body["operationId"]))
+    message_logger_adapter.info(f"Sent status message for {installation_id}: {success_message}")
+    return True
 
 
 async def get_porter_outputs(msg_body: dict, message_logger_adapter: logging.LoggerAdapter, config: dict):
@@ -216,28 +244,28 @@ async def get_porter_outputs(msg_body: dict, message_logger_adapter: logging.Log
     """
     porter_command = await build_porter_command_for_outputs(msg_body)
     message_logger_adapter.debug("Starting to run porter output command...")
-    returncode, stdout, err = await run_porter(porter_command, message_logger_adapter, config)
+    returncode, stdout, err = await run_porter(porter_command, message_logger_adapter, config["porter_env"])
     message_logger_adapter.debug("Finished running porter output command.")
 
     if returncode != 0:
-        error_message = "Error context message = " + " ".join(err.split('\n'))
+        error_message = "Error context message = " + " ".join((err or "").split('\n'))
         message_logger_adapter.info(f"{get_installation_id(msg_body)}: Failed to get outputs with error = {error_message}")
         return False, ""
-    else:
-        outputs_json = {}
-        try:
-            outputs_json = json.loads(stdout)
 
-            # loop props individually to try to deserialise to dict/list, as all TF outputs are strings, but we want the pure value
-            for i in range(0, len(outputs_json)):
-                if "{" in outputs_json[i]['value'] or "[" in outputs_json[i]['value']:
-                    outputs_json[i]['value'] = json.loads(outputs_json[i]['value'].replace("\\", ""))
+    outputs_json = {}
+    try:
+        outputs_json = json.loads(stdout)
 
-            message_logger_adapter.info(f"Got outputs as json: {outputs_json}")
-        except ValueError:
-            message_logger_adapter.error(f"Got outputs invalid json: {stdout}")
+        # loop props individually to try to deserialise to dict/list, as all TF outputs are strings, but we want the pure value
+        for i in range(0, len(outputs_json)):
+            if "{" in outputs_json[i]['value'] or "[" in outputs_json[i]['value']:
+                outputs_json[i]['value'] = json.loads(outputs_json[i]['value'].replace("\\", ""))
 
-        return True, outputs_json
+        message_logger_adapter.info(f"Got outputs as json: {outputs_json}")
+    except ValueError:
+        message_logger_adapter.error(f"Got outputs invalid json: {stdout}")
+
+    return True, outputs_json
 
 
 async def runner(logger_adapter: logging.LoggerAdapter, config: dict):
