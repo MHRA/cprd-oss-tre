@@ -2,15 +2,14 @@ import logging
 import httpx
 import jwt
 import time
-from fastapi import HTTPException
+
 
 from shared import config
 
 
 async def send_status_event(message: dict) -> None:
 
-    if not isinstance(message, dict):
-        return
+    if not isinstance(message, dict):        return
 
     req = message.get("req") or {}
 
@@ -75,10 +74,7 @@ async def send_status_event(message: dict) -> None:
             response.status_code
         )
 
-        raise HTTPException(
-            status_code=response.status_code,
-            detail="Error contacting Notify UK API."
-        )
+
 
     except Exception as exc:
         logging.exception(
@@ -86,7 +82,4 @@ async def send_status_event(message: dict) -> None:
             str(exc)
         )
 
-        raise HTTPException(
-            status_code=500,
-            detail="Unexpected error sending status event."
-        )
+

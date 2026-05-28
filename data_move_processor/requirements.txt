@@ -9,3 +9,4 @@ azure-cosmos
 azure-storage-blob
 azure-servicebus
 azure-identity
+httpx
