@@ -76,10 +76,10 @@ resource "azurerm_linux_function_app" "data_move_processor" {
     "TASKHUB_NAME"                        = "DataMoveProcessor${upper(var.tre_id)}"
     "TRE_ID"                              = var.tre_id
     "NOTIFY_UK_TEMPLATE_ID"               = ""
-    "NOTIFY_UK_URL"                       = ""
+    "NOTIFY_UK_URL"                       = "@Microsoft.KeyVault(SecretUri=${data.azurerm_key_vault_secret.notify_uk_url.id})"
     "NOTIFY_UK_SECRET"                    = ""
-    "NOTIFY_UK_ISS_ID"                    = ""
-    "NOTIFY_UK_EMAIL_SUBJECT_TAG"         = ""
+    "NOTIFY_UK_ISS_ID"                    = "@Microsoft.KeyVault(SecretUri=${data.azurerm_key_vault_secret.notify_uk_iss_id.id})"
+    "NOTIFY_UK_EMAIL_SUBJECT_TAG"         = "@Microsoft.KeyVault(SecretUri=${data.azurerm_key_vault_secret.notify_uk_email_subject_tag.id})"
   }
 
   # We are running a Python app.
@@ -100,6 +100,16 @@ resource "azurerm_linux_function_app" "data_move_processor" {
         image_tag    = local.version
       }
     }
+  }
+
+  lifecycle {
+    ignore_changes = [
+      app_settings["NOTIFY_UK_TEMPLATE_ID"],
+      app_settings["NOTIFY_UK_SECRET"],
+      app_settings["NOTIFY_UK_URL"],
+      app_settings["NOTIFY_UK_ISS_ID"],
+      app_settings["NOTIFY_UK_EMAIL_SUBJECT_TAG"]
+    ]
   }
 }
 

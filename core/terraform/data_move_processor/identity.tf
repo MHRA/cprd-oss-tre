@@ -48,3 +48,11 @@ resource "azurerm_role_assignment" "servicebus_receiver" {
   role_definition_name = "Azure Service Bus Data Receiver"
   principal_id         = azurerm_user_assigned_identity.function_app_data_move_processor_identity.principal_id
 }
+
+resource "azurerm_key_vault_access_policy" "data_move_processor" {
+  key_vault_id = var.core_key_vault_id
+  tenant_id    = azurerm_user_assigned_identity.function_app_data_move_processor_identity.tenant_id
+  object_id    = azurerm_user_assigned_identity.function_app_data_move_processor_identity.principal_id
+
+  key_permissions         = ["Get", "List", ]
+}

@@ -230,6 +230,7 @@ module "data_move_processor" {
   mgmt_resource_group_name             = var.mgmt_resource_group_name
   mgmt_acr_name                        = var.acr_name
   data_move_requests_queue_name        = local.data_move_requests_queue_name
+  core_key_vault_id                    = azurerm_key_vault.kv.id
 
   depends_on = [
     module.network,
