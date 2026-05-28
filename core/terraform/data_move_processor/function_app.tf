@@ -75,6 +75,11 @@ resource "azurerm_linux_function_app" "data_move_processor" {
     "WEBSITES_ENABLE_APP_SERVICE_STORAGE" = false
     "TASKHUB_NAME"                        = "DataMoveProcessor${upper(var.tre_id)}"
     "TRE_ID"                              = var.tre_id
+    "NOTIFY_UK_TEMPLATE_ID"               = ""
+    "NOTIFY_UK_URL"                       = ""
+    "NOTIFY_UK_SECRET"                    = ""
+    "NOTIFY_UK_ISS_ID"                    = ""
+    "NOTIFY_UK_EMAIL_SUBJECT_TAG"         = ""
   }
 
   # We are running a Python app.
