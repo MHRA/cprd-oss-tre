@@ -54,5 +54,5 @@ resource "azurerm_key_vault_access_policy" "data_move_processor" {
   tenant_id    = azurerm_user_assigned_identity.function_app_data_move_processor_identity.tenant_id
   object_id    = azurerm_user_assigned_identity.function_app_data_move_processor_identity.principal_id
 
-  key_permissions         = ["Get", "List", ]
+  secret_permissions = ["Get", "List", ]
 }
