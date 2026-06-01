@@ -1,4 +1,3 @@
-variable "core_key_vault_id" {}
 variable "core_storage_name" {}
 variable "cosmosdb_account_id" {}
 variable "data_move_processor_image_repository" {}
