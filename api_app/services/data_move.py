@@ -19,9 +19,12 @@ async def get_files(workspace_id: str, protocol_id: str) -> List["DataMoveFile"]
         container_client: ContainerClient = blob_service_client.get_container_client(protocol_id)
         files: List[DataMoveFile] = []
 
-        async for blob in container_client.list_blobs(name_starts_with="SendToAnalyse/"):
+        # async for blob in container_client.list_blobs(name_starts_with="SendToAnalyse/"):
 
-            relative_path = blob.name.replace("SendToAnalyse/", "")
+        #     relative_path = blob.name.replace("SendToAnalyse/", "")
+        async for blob in container_client.list_blobs(name_starts_with=f"{constants.EXPLORE_WORKSPACE_SSBS_ORIGIN_FOLDER}/"):
+
+            relative_path = blob.name.replace(f"{constants.EXPLORE_WORKSPACE_SSBS_ORIGIN_FOLDER}/", "")
 
             # only files in root of folder
             if "/" not in relative_path and not relative_path.endswith("/"):

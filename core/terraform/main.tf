@@ -220,7 +220,6 @@ module "data_move_processor" {
   location                             = var.location
   resource_group_name                  = azurerm_resource_group.core.name
   data_move_processor_subnet_id        = module.network.data_move_processor_subnet_id
-  tre_core_tags                        = local.tre_core_tags
   core_storage_name                    = azurerm_storage_account.stg.name
   cosmosdb_account_id                  = azurerm_cosmosdb_account.tre_db_account.id
   servicebus_namespace                 = azurerm_servicebus_namespace.sb
@@ -230,7 +229,7 @@ module "data_move_processor" {
   mgmt_resource_group_name             = var.mgmt_resource_group_name
   mgmt_acr_name                        = var.acr_name
   data_move_requests_queue_name        = local.data_move_requests_queue_name
-  core_key_vault_id                    = azurerm_key_vault.kv.id
+  tre_core_tags                        = local.tre_core_tags
 
   depends_on = [
     module.network,

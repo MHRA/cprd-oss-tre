@@ -26,6 +26,8 @@ SERVICE_BUS_CONNECTION_NAME = "AzureWebJobsServiceBus"
 A_MSL_WORKSPACE = "tre-workspace-a-msl"
 E_MSL_WORKSPACE = "tre-workspace-e-msl"
 EMPTY_FILE_NAME = ".emptyFile"
+EXPLORE_WORKSPACE_SSBS_ORIGIN_FOLDER = "SendToAnalysee"
+ANALYSE_WORKSPACE_SSBS_DESTINATION = "ReceiveFromExplorea"
 
 NOTIFY_UK_TEMPLATE_ID: str = os.getenv("NOTIFY_UK_TEMPLATE_ID", default="")
 NOTIFY_UK_URL: str = os.getenv("NOTIFY_UK_URL", default="")

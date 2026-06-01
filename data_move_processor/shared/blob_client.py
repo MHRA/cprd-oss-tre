@@ -22,6 +22,8 @@ from shared.config import (
     STORAGE_ACCOUNT_NAME_WORKSPACE_RESOURCE_GROUP_SSBS,
     EMPTY_FILE_NAME,
     WORKSPACE_RESOURCE_GROUP_NAME,
+    EXPLORE_WORKSPACE_SSBS_ORIGIN_FOLDER,
+    ANALYSE_WORKSPACE_SSBS_DESTINATION,
     get_tre_id,
 )
 
@@ -118,8 +120,10 @@ def copy_blob(
 ):
     dest_container = source_container[:-1] + "a"
 
-    full_source_blob = f"SendToAnalyse/{source_blob}"
-    dest_blob = f"ReceiveFromExplore/{source_blob}"
+    # full_source_blob = f"SendToAnalyse/{source_blob}"
+    # dest_blob = f"ReceiveFromExplore/{source_blob}"
+    full_source_blob = f"{EXPLORE_WORKSPACE_SSBS_ORIGIN_FOLDER}/{source_blob}"
+    dest_blob = f"{ANALYSE_WORKSPACE_SSBS_DESTINATION}/{source_blob}"
 
     source_bsc = get_blob_service_client(workspace_id)
     source_blob_client: BlobClient = source_bsc.get_blob_client(
