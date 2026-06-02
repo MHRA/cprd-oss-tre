@@ -120,8 +120,6 @@ def copy_blob(
 ):
     dest_container = source_container[:-1] + "a"
 
-    # full_source_blob = f"SendToAnalyse/{source_blob}"
-    # dest_blob = f"ReceiveFromExplore/{source_blob}"
     full_source_blob = f"{EXPLORE_WORKSPACE_SSBS_ORIGIN_FOLDER}/{source_blob}"
     dest_blob = f"{ANALYSE_WORKSPACE_SSBS_DESTINATION}/{source_blob}"
 
