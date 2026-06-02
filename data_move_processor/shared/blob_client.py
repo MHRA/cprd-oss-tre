@@ -185,7 +185,7 @@ def copy_blob(
 
 def delete_blob(workspace_id: str, container_name: str, blob_name: str):
     blob_service_client = get_blob_service_client(workspace_id)
-    full_blob_name = f"SendToAnalyse/{blob_name}"
+    full_blob_name = f"{EXPLORE_WORKSPACE_SSBS_ORIGIN_FOLDER}/{blob_name}"
     blob_client = blob_service_client.get_blob_client(container_name, full_blob_name)
     blob_client.delete_blob()
 
@@ -211,13 +211,13 @@ def check_container_integrity(
     source_blobs = list_blobs(
         workspace_id,
         source_container,
-        prefix="SendToAnalyse/"
+        prefix= f"{EXPLORE_WORKSPACE_SSBS_ORIGIN_FOLDER}/"
     )
 
     dest_blobs = list_blobs(
         amsl_workspace_id,
         dest_container,
-        prefix="ReceiveFromExplore/"
+        prefix= f"{ANALYSE_WORKSPACE_SSBS_DESTINATION}/"
     )
 
     logging.info(
