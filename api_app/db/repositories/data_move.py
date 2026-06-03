@@ -39,7 +39,7 @@ class DataMoveRepository(BaseRepository):
 
     def create_datamove_request_item(
         self,
-        datamove_request_input: DataMoveTransactionRequest,
+        emsl_protocol_id: str,
         workspace_id: str,
         user: User
     ) -> DataMoveTransactions:
@@ -50,7 +50,7 @@ class DataMoveRepository(BaseRepository):
         datamove_request = DataMoveTransactions(
             id=full_datamove_request_id,
             workspaceId=workspace_id,
-            protocol_id=datamove_request_input.protocol_id,
+            protocol_id=emsl_protocol_id,
             amsl_workspace_id="",
             amsl_protocol_id="",
             files_size=0.0,

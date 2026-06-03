@@ -67,22 +67,36 @@ async def create_draft_request(
 ) -> DataMoveTransactionResponse:
 
     try:
+        workspace_template_name = await workspaceRepo.get_workspace_type_by_id(workspace.id)
+        if not workspace_template_name == strings.E_MSL_WORKSPACE:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Data Move operations can only be initiated from Explore workspace. Workspace {workspace.id} is of type {workspace_template_name}."
+            )
+
+        emsl_protocol_id = datamove_request_input.protocol_id + "e"
+        
+
         datamove_request: DataMoveTransactions = datamove_request_repo.create_datamove_request_item(
-                datamove_request_input=datamove_request_input,
+                emsl_protocol_id=emsl_protocol_id,
                 workspace_id=workspace.id,
                 user=user,
             )
         workspace_asml = await workspaceRepo.get_asml_workspace(workspace.id)
         logging.info(f"Created data move request with id {datamove_request.id} for workspace {workspace.id} and protocol {datamove_request.protocol_id}")
-        files: List[DataMoveFile] = await data_move.get_files(workspace.id, datamove_request_input.protocol_id)
+
+        files: List[DataMoveFile] = await data_move.get_files(workspace.id, emsl_protocol_id)
         logging.info(f"Retrieved {len(files)} files for data move request with id {datamove_request.id} for workspace {workspace.id} and protocol {datamove_request.protocol_id}")
+
         total_size: float = sum(file.file_size for file in files) if files else 0.0
         total_size_gb: float = total_size / (1024 * 1024 * 1024)
         datamove_request.files_size = total_size_gb
         datamove_request.files = files
+
         datamove_request.amsl_workspace_id = workspace_asml.id
-        amsl_protocol_id: str = datamove_request_input.protocol_id[:-1] + "a"
+        amsl_protocol_id: str = datamove_request_input.protocol_id + "a"
         datamove_request.amsl_protocol_id = amsl_protocol_id
+
         await save_and_publish_event_datamove_request(
             datamove_request=datamove_request,
             datamove_request_repo=datamove_request_repo,

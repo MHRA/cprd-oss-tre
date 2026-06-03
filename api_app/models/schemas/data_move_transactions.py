@@ -4,14 +4,12 @@ from pydantic import BaseModel
 
 
 class DataMoveTransactionRequest(BaseModel):
-    workspace_id: str
     protocol_id: str
 
     class config:
         schema_extra= {
             "example" :  {
-                "workspace_id": "182106a0-bb87-49e1-a1fe-fb7cf168f691",
-                "protocol_id": "26-092337e",
+                "protocol_id": "26-0923373",
             }
         }
 

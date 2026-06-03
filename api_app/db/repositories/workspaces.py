@@ -254,5 +254,7 @@ class WorkspaceRepository(ResourceRepository):
         workspaces: List[Dict[str, Any]] = await self.query(query=query)
         return parse_obj_as(Workspace, workspaces[0])
 
-
-
+    async def get_workspace_type_by_id(self, workspace_id: str) -> str:
+        query: str = f'SELECT * FROM c WHERE c.id = "{workspace_id}"'
+        workspace = await self.query(query=query)
+        return workspace[0]['templateName']
