@@ -219,11 +219,13 @@ def check_container_integrity(
     )
 
     logging.info(
-        f"Source blobs: {[b['FileName'] for b in source_blobs]}"
+        "Source blobs: %s",
+        [f"{b['FileName']} ({b['FileSize']})" for b in source_blobs]
     )
 
     logging.info(
-        f"Destination blobs: {[b['FileName'] for b in dest_blobs]}"
+        "Destination blobs: %s",
+        [f"{b['FileName']} ({b['FileSize']})" for b in dest_blobs]
     )
 
     source_names = {
@@ -237,8 +239,8 @@ def check_container_integrity(
     ] if dest_blobs else []
 
     logging.info(
-        f"Filtered destination blobs (matching source): "
-        f"{[b['FileName'] for b in filtered_dest_blobs]}"
+        "Filtered destination blobs (matching source): %s",
+        [f"{b['FileName']} ({b['FileSize']})" for b in filtered_dest_blobs]
     )
 
     source_size = (
