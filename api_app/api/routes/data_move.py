@@ -75,8 +75,6 @@ async def create_draft_request(
             )
 
         emsl_protocol_id = datamove_request_input.protocol_id + "e"
-        
-
         datamove_request: DataMoveTransactions = datamove_request_repo.create_datamove_request_item(
                 emsl_protocol_id=emsl_protocol_id,
                 workspace_id=workspace.id,
