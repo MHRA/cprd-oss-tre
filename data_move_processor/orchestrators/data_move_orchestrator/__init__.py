@@ -45,12 +45,12 @@ def orchestrator(context: df.DurableOrchestrationContext):
         results = yield context.task_all(tasks)
         success = all(results)
 
-        # Integrity check is not working as expected. Must be reviewed.
-        # if success:
-        #     success = yield context.call_activity(
-        #         "check_integrity",
-        #         {"transaction_id": transaction_id, "req": req}
-        #     )
+
+        if success:
+            success = yield context.call_activity(
+                "check_integrity",
+                 {"transaction_id": transaction_id, "req": req}
+             )
 
         if success:
             delete_tasks = [

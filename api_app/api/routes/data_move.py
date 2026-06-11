@@ -7,7 +7,7 @@ from azure.servicebus.aio import ServiceBusClient
 from fastapi import APIRouter, HTTPException, status as status_code, Depends
 from jsonschema import ValidationError
 from starlette import status
-from typing import List
+from typing import Any, Dict, List
 
 from api.dependencies.database import get_repository
 from db.repositories.workspaces import WorkspaceRepository
@@ -34,7 +34,7 @@ from services.authentication import (
     get_current_workspace_owner_or_researcher_user,
     get_current_tre_user_or_tre_admin,
 )
-
+from services.data_usage import DataUsageService, data_usage_service_factory
 
 datamove_workspace_router = APIRouter(
     dependencies=[Depends(get_current_workspace_owner_or_researcher_user)]
@@ -64,6 +64,7 @@ async def create_draft_request(
     datamove_request_repo=Depends(get_repository(DataMoveRepository)),
     workspaceRepo=Depends(get_repository(WorkspaceRepository)),
     workspace=Depends(get_deployed_workspace_by_id_from_path),
+    data_usage_service: DataUsageService = Depends(data_usage_service_factory),
 ) -> DataMoveTransactionResponse:
 
     try:
@@ -74,13 +75,35 @@ async def create_draft_request(
                 detail=f"Data Move operations can only be initiated from Explore workspace. Workspace {workspace.id} is of type {workspace_template_name}."
             )
 
+
         emsl_protocol_id = datamove_request_input.protocol_id + "e"
+        members: List[Dict[str, Any]] = await data_usage_service.get_group_members(emsl_protocol_id, workspace.id)
+
+        # Extract and normalize member emails for consistent comparison
+        members_emails_lower = {member.get("mail", "").lower() for member in (members or []) if member.get("mail")}
+
+        workspace_owner_email = workspace.user.get("email") if isinstance(workspace.user, dict) else workspace.user.email
+        workspace_owner_email = (workspace_owner_email or "").lower()
+
+        if workspace_owner_email not in members_emails_lower:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"User {workspace_owner_email} is not a member of the protocol {emsl_protocol_id} group. Data Move request cannot be created.",
+            )
+
+        workspace_asml = await workspaceRepo.get_asml_workspace(workspace.id)
+        if not workspace_asml:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Associated AMSL workspace not found for workspace {workspace.id}. Data Move request cannot be created.",
+            )
+
         datamove_request: DataMoveTransactions = datamove_request_repo.create_datamove_request_item(
                 emsl_protocol_id=emsl_protocol_id,
                 workspace_id=workspace.id,
                 user=user,
             )
-        workspace_asml = await workspaceRepo.get_asml_workspace(workspace.id)
+
         logging.info(f"Created data move request with id {datamove_request.id} for workspace {workspace.id} and protocol {datamove_request.protocol_id}")
 
         files: List[DataMoveFile] = await data_move.get_files(workspace.id, emsl_protocol_id)

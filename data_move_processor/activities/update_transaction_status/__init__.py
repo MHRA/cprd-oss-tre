@@ -18,6 +18,6 @@ def update_transaction_status(data: dict) -> None:
         partition_key=transaction_id,
         patch={
             "status": status,
-            "updatedWhen": datetime.now(timezone.utc).isoformat(),
+           "updatedWhen": datetime.now(timezone.utc).timestamp(),
         },
     )

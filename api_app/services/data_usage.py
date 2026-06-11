@@ -398,6 +398,7 @@ class DataUsageService:
                         protocol_percentage_usage=math.floor(
                             entity.get("ProtocolPercentageUsage", 0)
                         ),
+                        status=entity.get('Status', ''),
                         timestamp=entity.metadata.get("timestamp")
                     )
                 )

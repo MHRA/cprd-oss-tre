@@ -3,7 +3,8 @@ import datetime
 import json
 import logging
 import os
-from typing import Optional
+import time
+from typing import Dict, Optional, Set
 
 from azure.identity import DefaultAzureCredential
 from azure.storage.blob import (
@@ -102,6 +103,7 @@ def list_blobs(workspace_id: str, container_name: str, prefix: Optional[str] = N
                 "SourceContainerName": container_name,
                 "FileName": blob["name"],
                 "FileSize": blob["size"],
+                "copyStatus": blob.get("copy", {}).get("status"),
             }
         )
 
@@ -197,69 +199,102 @@ def get_blob_properties(workspace_id: str, container_name: str, blob_name: str):
 # ==========================================================
 # Integrity Check
 # ==========================================================
-
 def check_container_integrity(
     workspace_id: str,
     source_container: str,
     amsl_workspace_id: str,
 ) -> bool:
+    MAX_RETRIES = 10
+    RETRY_DELAY_SECONDS = 30
 
-    dest_container = source_container[:-1] + "a"
+    dest_container = f"{source_container[:-1]}a"
 
+    # Fetch source blobs once
     source_blobs = list_blobs(
         workspace_id,
         source_container,
-        prefix= f"{EXPLORE_WORKSPACE_SSBS_ORIGIN_FOLDER}/"
+        prefix=f"{EXPLORE_WORKSPACE_SSBS_ORIGIN_FOLDER}/",
     )
 
-    dest_blobs = list_blobs(
-        amsl_workspace_id,
-        dest_container,
-        prefix= f"{ANALYSE_WORKSPACE_SSBS_DESTINATION}/"
-    )
 
-    logging.info(
-        "Source blobs: %s",
-        [f"{b['FileName']} ({b['FileSize']})" for b in source_blobs]
-    )
+    source_files: Dict[str, int] = {
+        blob["FileName"].rsplit("/", 1)[-1]: blob["FileSize"]
+        for blob in source_blobs
+    }
 
-    logging.info(
-        "Destination blobs: %s",
-        [f"{b['FileName']} ({b['FileSize']})" for b in dest_blobs]
-    )
+    source_size: int = sum(source_files.values())
 
-    source_names = {
-        b["FileName"].split("/")[-1]
-        for b in source_blobs
-    } if source_blobs else set()
+    for attempt in range(MAX_RETRIES):
+        dest_blobs = list_blobs(
+            amsl_workspace_id,
+            dest_container,
+            prefix=f"{ANALYSE_WORKSPACE_SSBS_DESTINATION}/",
+        )
 
-    filtered_dest_blobs = [
-        b for b in dest_blobs
-        if b["FileName"].split("/")[-1] in source_names
-    ] if dest_blobs else []
+        dest_size = 0
+        matched_files: Set[str] = set()
+        pending_found = False
 
-    logging.info(
-        "Filtered destination blobs (matching source): %s",
-        [f"{b['FileName']} ({b['FileSize']})" for b in filtered_dest_blobs]
-    )
+        for blob in dest_blobs:
+            filename = blob["FileName"].rsplit("/", 1)[-1]
 
-    source_size = (
-        sum(b["FileSize"] for b in source_blobs)
-        if source_blobs else 0
-    )
+            if filename not in source_files:
+                continue
 
-    dest_size = (
-        sum(b["FileSize"] for b in filtered_dest_blobs)
-        if filtered_dest_blobs else 0
-    )
+            matched_files.add(filename)
 
-    logging.info(
-        f"Integrity check: "
-        f"source_size={source_size} "
-        f"dest_size={dest_size}"
-    )
+            copy_status = blob.get("copy", {}).get("status")
 
-    return source_size == dest_size
+            if copy_status == "pending":
+                pending_found = True
+                continue
+
+            if copy_status != "success":
+                logging.error(
+                    "Copy failed for blob %s. Status=%s",
+                    filename,
+                    copy_status,
+                )
+                return False
+
+            dest_size += blob["FileSize"]
+
+
+        if pending_found:
+            logging.info(
+                "Pending copy operations detected. Retry %s/%s",
+                attempt + 1,
+                MAX_RETRIES,
+            )
+
+            if attempt == MAX_RETRIES - 1:
+                logging.error(
+                    "Blob copies still pending after %s retries.",
+                    MAX_RETRIES,
+                )
+                return False
+
+            time.sleep(RETRY_DELAY_SECONDS)
+            continue
+
+
+        missing_files = set(source_files) - matched_files
+        if missing_files:
+            logging.error(
+                "Missing destination blobs: %s",
+                sorted(missing_files),
+            )
+            return False
+
+        logging.info(
+            "Integrity check completed: source_size=%s dest_size=%s",
+            source_size,
+            dest_size,
+        )
+
+        return source_size == dest_size
+
+    return False
 
 # ==========================================================
 # Container Lease Management
