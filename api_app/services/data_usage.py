@@ -5,6 +5,7 @@ import uuid
 import asyncio
 from typing import Any, Dict, List, Optional
 
+from models.domain.data_move_transactions import DataMoveFile
 from db.repositories.workspaces import WorkspaceRepository
 from models.schemas.container_reation_request import ContainerCreateRequest
 from models.domain.data_usage import MHRAProtocolItem, MHRAProtocolList, MHRAWorkspaceDataUsage, MHRAContainerUsageItem, MHRAFileshareUsageItem, MHRAStorageAccountLimits, MHRAStorageAccountLimitsItem, StorageAccountLimitsInput, WorkspaceDataUsage
@@ -22,6 +23,7 @@ from msgraph import GraphServiceClient
 from msgraph.generated.groups.groups_request_builder import GroupsRequestBuilder
 from azure.identity import ClientSecretCredential
 from models.domain.authentication import User
+from services import data_move
 
 # make sure CostService is singleton
 @lru_cache(maxsize=None)
@@ -383,6 +385,9 @@ class DataUsageService:
 
                 storage_limits = entity.get("StorageLimits", 0)
                 protocol_usage = entity.get("ProtocolDataUsage", 0)
+                files: List[DataMoveFile] = await data_move.get_files(workspace.id, protocol_id)
+                total_size: float = sum(file.file_size for file in files) if files else 0.0
+                total_size_gb: float = total_size / (1024 * 1024 * 1024)
 
                 protocol_items.append(
                     MHRAProtocolItem(
@@ -399,7 +404,9 @@ class DataUsageService:
                             entity.get("ProtocolPercentageUsage", 0)
                         ),
                         status=entity.get('Status', ''),
-                        timestamp=entity.metadata.get("timestamp")
+                        timestamp=entity.metadata.get("timestamp"),
+                        filesSize=total_size,
+                        estimated_time=self.estimate_copy_time(total_size_gb),
                     )
                 )
 
@@ -429,6 +436,21 @@ class DataUsageService:
                 str(e)
             )
             raise
+
+    def estimate_copy_time(self, total_size_gb: float) -> float:
+
+        if total_size_gb <= 0:
+            return 0.0
+
+        speed: float = 1024/8
+
+        total_minutes = total_size_gb / speed
+
+
+        return round(total_minutes, 2)
+
+
+
 
     async def get_protocolItem(self, protocolId: str) -> MHRAProtocolItem:
         container_perstudy_table = constants.WORKSPACE_PERSTUDY_USAGE_TABLE_NAME

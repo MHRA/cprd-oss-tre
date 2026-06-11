@@ -20,6 +20,7 @@ class DataMoveTransactionResponse(BaseModel):
     file_size:float
     date_time:float
     status:str
+    data_move_user:str
 
     class config:
         schema_extra= {

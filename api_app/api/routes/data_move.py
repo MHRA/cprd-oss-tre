@@ -178,6 +178,7 @@ async def get_all_datamove_requests_by_workspace(
                     file_size=req.files_size,
                     date_time=req.date_time,
                     status=req.status,
+                    data_move_user = req.createdBy.get("name"),
                 )
                 for req in datamove_requests
             ]
