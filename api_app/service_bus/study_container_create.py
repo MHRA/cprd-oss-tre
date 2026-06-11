@@ -2,6 +2,7 @@ import asyncio
 import json
 import uuid
 import logging
+import socket
 from dataclasses import dataclass, field
 from typing import Optional, List, Callable, Awaitable
 from datetime import datetime, timezone
@@ -347,8 +348,38 @@ class StudyContainerProvisioningService:
         container_name = request.protocolId.lower()  # must be lowercase
         suffix = container_name[-1]
 
+        # Add backwards compatibility. There may be SSBS containers without suffix.
+        # First we try storage accounts with suffix.
+        try:
+            account_name_final = f"{account_name}{suffix}"
+            addr = socket.gethostbyname(f"{account_name_final}.blob.core.windows.net")
+
+        except:
+            logging.info(
+                "Storage Account %s does not exist. Trying without suffix.",
+                account_name_final
+            )
+
+            try:
+                account_name_final = f"{account_name}"
+                addr = socket.gethostbyname(f"{account_name_final}.blob.core.windows.net")
+
+            except:
+                logging.error(
+                    "Storage Account %s does not exist. Workspace ID: %s, workspace template name: %s",
+                    account_name_final,
+                    workspace.id,
+                    workspace.templateName
+                )
+                raise
+
+        logging.info(
+                "Storage Account %s found. Proceed with saga.",
+                account_name_final
+            )
+
         service_client = BlobServiceClient(
-            account_url=f"https://{account_name}{suffix}.blob.core.windows.net/",
+            account_url=f"https://{account_name_final}.blob.core.windows.net",
             credential=credentials.get_credential(),
         )
 

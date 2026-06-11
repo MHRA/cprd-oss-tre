@@ -82,13 +82,17 @@ async def create_draft_request(
         # Extract and normalize member emails for consistent comparison
         members_emails_lower = {member.get("mail", "").lower() for member in (members or []) if member.get("mail")}
 
-        workspace_owner_email = workspace.user.get("email") if isinstance(workspace.user, dict) else workspace.user.email
-        workspace_owner_email = (workspace_owner_email or "").lower()
+        # workspace_owner_email = workspace.user.get("email") if isinstance(workspace.user, dict) else workspace.user.email
+        # workspace_owner_email = (workspace_owner_email or "").lower()
+        workspace_researcher_email = user.get("email") if isinstance(user, dict) else user.email
+        workspace_researcher_email = (workspace_researcher_email or "").lower()
 
-        if workspace_owner_email not in members_emails_lower:
+        # if workspace_owner_email not in members_emails_lower:
+        if workspace_researcher_email not in members_emails_lower:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail=f"User {workspace_owner_email} is not a member of the protocol {emsl_protocol_id} group. Data Move request cannot be created.",
+                # detail=f"User {workspace_owner_email} is not a member of the protocol {emsl_protocol_id} group. Data Move request cannot be created.",
+                detail=f"User {workspace_researcher_email} is not a member of the protocol {emsl_protocol_id} group. Data Move request cannot be created.",
             )
 
         workspace_asml = await workspaceRepo.get_asml_workspace(workspace.id)
