@@ -205,7 +205,7 @@ def check_container_integrity(
     amsl_workspace_id: str,
 ) -> bool:
     MAX_RETRIES = 10
-    RETRY_DELAY_SECONDS = 30
+    RETRY_DELAY_SECONDS = 300
 
     dest_container = f"{source_container[:-1]}a"
 
@@ -243,9 +243,15 @@ def check_container_integrity(
 
             matched_files.add(filename)
 
-            copy_status = blob.get("copy", {}).get("status")
+            # copy_status = blob.get("copy", {}).get("status")
+            copy_status = blob.get("copyStatus")
 
-            if copy_status == "pending":
+            my_filename = blob.get("FileName")
+            my_copystatus = blob.get("copyStatus")
+
+            logging.info(f">>>>>>> {my_filename} - {my_copystatus}")
+
+            if copy_status is None or copy_status == "pending":
                 pending_found = True
                 continue
 
