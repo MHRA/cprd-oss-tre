@@ -39,7 +39,7 @@ def create_container(account_name: str, request_id: str):
 
 
 def get_request_files(account_name: str, request_id: str,
-                      max_retries: int = 3, base_delay: int = 2) -> list:
+                      max_retries: int = 5, base_delay: int = 30) -> list:
     blob_service_client = BlobServiceClient(
         account_url=get_account_url(account_name),
         credential=get_credential()
@@ -47,19 +47,25 @@ def get_request_files(account_name: str, request_id: str,
     container_client = blob_service_client.get_container_client(container=request_id)
 
     for attempt in range(max_retries):
-        files = []
+        try:
+            files = []
 
-        for blob in container_client.list_blobs():
-            files.append({"name": blob.name, "size": blob.size})
+            for blob in container_client.list_blobs():
+                files.append({"name": blob.name, "size": blob.size})
 
-        if files:
-            return files
+            if files:
+                return files
+
+        except Exception as e:
+            logging.warning(f"Attempt {attempt + 1}/{max_retries} failed to list blobs: {e}")
+            if attempt == max_retries - 1:
+                raise
 
         if attempt < max_retries - 1:
             sleep_time = base_delay * (2 ** attempt)
             time.sleep(sleep_time)
 
-    return files
+    return []
 
 
 def copy_data(source_account_name: str, destination_account_name: str, request_id: str):
