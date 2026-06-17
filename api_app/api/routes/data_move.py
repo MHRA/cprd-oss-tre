@@ -192,6 +192,52 @@ async def get_all_datamove_requests_by_workspace(
 
 
 # -------------------------
+# GET ALL REQUESTS
+# -------------------------
+@datamove_core_router.get(
+    "/workspaces/{workspace_id}/data_move/transactions",
+    status_code=status_code.HTTP_200_OK,
+    response_model=DataMoveTransactionResponseList,
+    name=strings.API_LIST_DATA_MOVE_REQUESTS,
+    dependencies=[
+        Depends(get_current_tre_user_or_tre_admin),],
+)
+async def get_all_datamove_requests_by_workspace(workspaceId: str,
+    datamove_request_repo=Depends(get_repository(DataMoveRepository)),
+) -> DataMoveTransactionResponseList:
+
+    try:
+        datamove_requests = await datamove_request_repo.get_datamove_requests(
+            workspace_id=workspaceId
+        )
+
+        return DataMoveTransactionResponseList(
+            dataMoveTransactions=[
+                DataMoveTransactionResponse(
+                    transaction_id=req.id,
+                    workspace_id=req.workspaceId,
+                    protocol_id=req.protocol_id,
+                    file_size=req.files_size,
+                    date_time=req.date_time,
+                    status=req.status,
+                    data_move_user = req.createdBy.get("name"),
+                )
+                for req in datamove_requests
+            ]
+        )
+
+    except (ValidationError, ValueError) as e:
+        logging.exception(
+            "Failed retrieving all the data move requests for a workspace"
+        )
+        raise HTTPException(
+            status_code=status_code.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )
+
+
+
+# -------------------------
 # SAVE + PUBLISH EVENT
 # -------------------------
 async def save_and_publish_event_datamove_request(
