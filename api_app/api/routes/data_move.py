@@ -202,13 +202,13 @@ async def get_all_datamove_requests_by_workspace(
     dependencies=[
         Depends(get_current_tre_user_or_tre_admin),],
 )
-async def get_all_datamove_requests_by_workspace(workspaceId: str,
+async def get_all_datamove_requests_by_workspace(workspace_id: str,
     datamove_request_repo=Depends(get_repository(DataMoveRepository)),
 ) -> DataMoveTransactionResponseList:
 
     try:
         datamove_requests = await datamove_request_repo.get_datamove_requests(
-            workspace_id=workspaceId
+            workspace_id=workspace_id
         )
 
         return DataMoveTransactionResponseList(
