@@ -338,52 +338,65 @@ class StudyContainerProvisioningService:
         return suffix
 
     # =====================================================
-    # Container
+    # Generate final SSBS storage account name
     # =====================================================
-    async def _create_container(self, request, workspace):
-        account_name = constants.STORAGE_ACCOUNT_NAME_WORKSPACE_RESOURCE_GROUP_SSBS.format(
-            request.workspaceId[-4:]
-        )
-
-        container_name = request.protocolId.lower()  # must be lowercase
-        suffix = container_name[-1]
-
-        # Add backwards compatibility. There may be SSBS containers without suffix.
+    async def _generate_final_account_name(self, workspace_id, step):
+        # Add backwards compatibility. There may be SSBS storage accounts names without suffix.
         # First we try storage accounts with suffix.
+        account_name = constants.STORAGE_ACCOUNT_NAME_WORKSPACE_RESOURCE_GROUP_SSBS.format(
+            workspace_id[-4:]
+        )
+        suffix = await self._get_workspace_type(workspace_id)
+
         try:
-            account_name_final = f"{account_name}{suffix}"
+            final_account_name = f"{account_name}{suffix}"
             logging.info(
-                "Looking for Storage Account %s.",
-                account_name_final
+                "Looking for Storage Account %s. Step: %s.",
+                final_account_name,
+                step
             )
-            addr = socket.gethostbyname(f"{account_name_final}.blob.core.windows.net")
+            addr = socket.gethostbyname(f"{final_account_name}.blob.core.windows.net")
 
         except:
             logging.info(
-                "Storage Account %s does not exist. Trying without suffix.",
-                account_name_final
+                "Storage Account %s does not exist. Trying without suffix. Step %s.",
+                final_account_name,
+                step
             )
 
             try:
-                account_name_final = f"{account_name}"
-                addr = socket.gethostbyname(f"{account_name_final}.blob.core.windows.net")
+                final_account_name = f"{account_name}"
+                addr = socket.gethostbyname(f"{final_account_name}.blob.core.windows.net")
 
             except:
                 logging.error(
-                    "Storage Account %s does not exist. Workspace ID: %s, workspace template name: %s.",
-                    account_name_final,
-                    workspace.id,
-                    workspace.templateName
+                    "Storage Account %s does not exist. Workspace ID: %s. Step: %s.",
+                    final_account_name,
+                    workspace_id,
+                    step
                 )
                 raise
 
         logging.info(
-                "Storage Account %s found. Proceed with container creation.",
-                account_name_final
+                "Storage Account %s found. Proceed with saga. Step: %s",
+                final_account_name,
+                step
             )
 
+        return final_account_name
+
+    # =====================================================
+    # Container
+    # =====================================================
+    async def _create_container(self, request, workspace):
+        account_name = await self._generate_final_account_name(request.workspaceId, "CONTAINER_CREATION")
+        container_name = request.protocolId.lower()  # must be lowercase
+
+        # The API appends the suffix to the container name, so we can retrieve the suffix from the container name.
+        suffix = container_name[-1]
+
         service_client = BlobServiceClient(
-            account_url=f"https://{account_name_final}.blob.core.windows.net",
+            account_url=f"https://{account_name}.blob.core.windows.net",
             credential=credentials.get_credential(),
         )
 
@@ -434,17 +447,10 @@ class StudyContainerProvisioningService:
         return {"name": container_name, "folders": folders}
 
     async def _delete_container(self, workspace_id, container_name):
-        account_name = constants.STORAGE_ACCOUNT_NAME_WORKSPACE_RESOURCE_GROUP_SSBS.format(
-            workspace_id[-4:]
-        )
-
-        try:
-            suffix = await self._get_workspace_type(workspace_id)
-        except:
-            raise
+        account_name = await self._generate_final_account_name(workspace_id, "CONTAINER_DELETION")
 
         client = BlobServiceClient(
-            account_url=f"https://{account_name}{suffix}.blob.core.windows.net/",
+            account_url=f"https://{account_name}.blob.core.windows.net/",
             credential=credentials.get_credential(),
         )
 
@@ -507,7 +513,7 @@ class StudyContainerProvisioningService:
         )
 
 
-        storage = await self._get_storage_account(credential, workspace_id)
+        storage = await self._get_storage_account_properties(credential, workspace_id)
         role_id = await self._get_role_definition_id(
             credential, subscription_id
         )
@@ -542,7 +548,7 @@ class StudyContainerProvisioningService:
 
         return assignment_id
 
-    async def _get_storage_account(self, credential, workspace_id):
+    async def _get_storage_account_properties(self, credential, workspace_id):
         client = StorageManagementClient(
             credential, config.SUBSCRIPTION_ID
         )
@@ -551,49 +557,9 @@ class StudyContainerProvisioningService:
             config.TRE_ID, workspace_id[-4:]
         )
 
-        try:
-            suffix = await self._get_workspace_type(workspace_id)
-        except:
-            raise
+        account_name = await self._generate_final_account_name(workspace_id, "STORAGE_ACCOUNT_PROPERTIES")
 
-        name = constants.STORAGE_ACCOUNT_NAME_WORKSPACE_RESOURCE_GROUP_SSBS.format(
-            workspace_id[-4:]
-        )
-
-        # Add backwards compatibility. There may be SSBS containers without suffix.
-        # First we try storage accounts with suffix.
-        try:
-            full_storage_account_name = f"{name}{suffix}"
-            logging.info(
-                "Looking for Storage Account %s.",
-                full_storage_account_name
-            )
-            addr = socket.gethostbyname(f"{full_storage_account_name}.blob.core.windows.net")
-
-        except:
-            logging.info(
-                "Storage Account %s does not exist. Trying without suffix.",
-                full_storage_account_name
-            )
-
-            try:
-                full_storage_account_name = f"{name}"
-                addr = socket.gethostbyname(f"{full_storage_account_name}.blob.core.windows.net")
-
-            except:
-                logging.error(
-                    "Storage Account %s does not exist. Workspace ID: %s.",
-                    full_storage_account_name,
-                    workspace_id
-                )
-                raise
-
-        logging.info(
-            "Storage Account %s found. Proceed with role assignment.",
-            full_storage_account_name
-        )
-
-        return client.storage_accounts.get_properties(rg, full_storage_account_name)
+        return client.storage_accounts.get_properties(rg, account_name)
 
     async def _get_role_definition_id(self, credential, subscription_id):
         client = AuthorizationManagementClient(
@@ -692,17 +658,10 @@ class StudyContainerProvisioningService:
     # Container existence check
     # =====================================================
     async def _assert_container_exists(self, workspace_id, container_name):
-        account_name = constants.STORAGE_ACCOUNT_NAME_WORKSPACE_RESOURCE_GROUP_SSBS.format(
-            workspace_id[-4:]
-        )
-
-        try:
-            suffix = await self._get_workspace_type(workspace_id)
-        except:
-            raise
+        account_name = await self._generate_final_account_name(workspace_id, "CHECK_CONTAINER_EXISTENCE")
 
         client = BlobServiceClient(
-            account_url=f"https://{account_name}{suffix}.blob.core.windows.net/",
+            account_url=f"https://{account_name}.blob.core.windows.net/",
             credential=credentials.get_credential(),
         )
 
