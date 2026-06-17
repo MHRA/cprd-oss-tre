@@ -96,6 +96,10 @@ def list_blobs(workspace_id: str, container_name: str, prefix: Optional[str] = N
         if EMPTY_FILE_NAME in blob["name"]:
             continue
 
+        # For readind copy status we need to call get_blob_properties().
+        blob_client = blob_service_client.get_blob_client(container_name, blob["name"])
+        blob_properties = blob_client.get_blob_properties()
+
         results.append(
             {
                 "WorkspaceName": rg_workspace_name,
@@ -103,7 +107,7 @@ def list_blobs(workspace_id: str, container_name: str, prefix: Optional[str] = N
                 "SourceContainerName": container_name,
                 "FileName": blob["name"],
                 "FileSize": blob["size"],
-                "copyStatus": blob.get("copy", {}).get("status"),
+                "copyStatus": blob_properties.get("copy", {}).get("status"),
             }
         )
 
@@ -182,7 +186,6 @@ def copy_blob(
 # ==========================================================
 # Blob Delete / Properties
 # ==========================================================
-
 def delete_blob(workspace_id: str, container_name: str, blob_name: str):
     blob_service_client = get_blob_service_client(workspace_id)
     full_blob_name = f"{EXPLORE_WORKSPACE_SSBS_ORIGIN_FOLDER}/{blob_name}"
@@ -205,7 +208,7 @@ def check_container_integrity(
     amsl_workspace_id: str,
 ) -> bool:
     MAX_RETRIES = 10
-    RETRY_DELAY_SECONDS = 300
+    RETRY_DELAY_SECONDS = 120
 
     dest_container = f"{source_container[:-1]}a"
 
@@ -246,12 +249,11 @@ def check_container_integrity(
             # copy_status = blob.get("copy", {}).get("status")
             copy_status = blob.get("copyStatus")
 
-            my_filename = blob.get("FileName")
-            my_copystatus = blob.get("copyStatus")
-
-            logging.info(f">>>>>>> {my_filename} - {my_copystatus}")
-
-            if copy_status is None or copy_status == "pending":
+            if copy_status == "pending":
+                logging.info(
+                    "Blob %s is in peding state. Still being copied.",
+                    filename
+                )
                 pending_found = True
                 continue
 

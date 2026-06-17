@@ -556,7 +556,29 @@ class StudyContainerProvisioningService:
             workspace_id[-4:]
         )
 
-        full_storage_account_name = f"{name}{suffix}"
+        # Add backwards compatibility. There may be SSBS containers without suffix.
+        # First we try storage accounts with suffix.
+        try:
+            full_storage_account_name = f"{name}{suffix}"
+            addr = socket.gethostbyname(f"{full_storage_account_name}.blob.core.windows.net")
+
+        except:
+            logging.info(
+                "Storage Account %s does not exist. Trying without suffix.",
+                full_storage_account_name
+            )
+
+            try:
+                full_storage_account_name = f"{name}"
+                addr = socket.gethostbyname(f"{full_storage_account_name}.blob.core.windows.net")
+
+            except:
+                logging.error(
+                    "Storage Account %s does not exist. Workspace ID: %s, workspace template name: %s",
+                    full_storage_account_name,
+                    workspace_id
+                )
+                raise
 
         return client.storage_accounts.get_properties(rg, full_storage_account_name)
 
