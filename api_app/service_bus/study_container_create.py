@@ -352,6 +352,10 @@ class StudyContainerProvisioningService:
         # First we try storage accounts with suffix.
         try:
             account_name_final = f"{account_name}{suffix}"
+            logging.info(
+                "Looking for Storage Account %s.",
+                account_name_final
+            )
             addr = socket.gethostbyname(f"{account_name_final}.blob.core.windows.net")
 
         except:
@@ -366,7 +370,7 @@ class StudyContainerProvisioningService:
 
             except:
                 logging.error(
-                    "Storage Account %s does not exist. Workspace ID: %s, workspace template name: %s",
+                    "Storage Account %s does not exist. Workspace ID: %s, workspace template name: %s.",
                     account_name_final,
                     workspace.id,
                     workspace.templateName
@@ -374,7 +378,7 @@ class StudyContainerProvisioningService:
                 raise
 
         logging.info(
-                "Storage Account %s found. Proceed with saga.",
+                "Storage Account %s found. Proceed with container creation.",
                 account_name_final
             )
 
@@ -560,6 +564,10 @@ class StudyContainerProvisioningService:
         # First we try storage accounts with suffix.
         try:
             full_storage_account_name = f"{name}{suffix}"
+            logging.info(
+                "Looking for Storage Account %s.",
+                full_storage_account_name
+            )
             addr = socket.gethostbyname(f"{full_storage_account_name}.blob.core.windows.net")
 
         except:
@@ -574,11 +582,16 @@ class StudyContainerProvisioningService:
 
             except:
                 logging.error(
-                    "Storage Account %s does not exist. Workspace ID: %s, workspace template name: %s",
+                    "Storage Account %s does not exist. Workspace ID: %s.",
                     full_storage_account_name,
                     workspace_id
                 )
                 raise
+
+        logging.info(
+            "Storage Account %s found. Proceed with role assignment.",
+            full_storage_account_name
+        )
 
         return client.storage_accounts.get_properties(rg, full_storage_account_name)
 
