@@ -1,20 +1,59 @@
 import logging
+import socket
 from typing import List
 from azure.storage.blob.aio import BlobServiceClient, ContainerClient
+from azure.cosmos import CosmosClient
 from models.domain.data_move_transactions import DataMoveFile
-from resources import constants
-from core import credentials
+from resources import constants, strings
+from core import credentials, config
+
+# =====================================================
+# Workspace
+# =====================================================
+async def get_workspace_type(workspaceId):
+    # We create the suffix based on the Workspace Template name.
+    # Cosmos Client requires the Managed Identity id-api-<TRE_ID> to have builtin role "Cosmos DB Built-in Data Reader" assigned.
+    cosmos_client = CosmosClient(
+        url=f"https://cosmos-{config.TRE_ID}.documents.azure.com/",
+        credential=credentials.get_credential()
+    )
+
+    cosmos_database = cosmos_client.get_database_client(strings.COSMOS_DATABASE_NAME)
+    cosmos_container = cosmos_database.get_container_client(strings.RESOURCES_CONTAINER_NAME)
+
+    query = f"SELECT * FROM {strings.RESOURCES_CONTAINER_NAME} r WHERE r.id = @workspaceId"
+    parameters = [ dict(name='@workspaceId', value=workspaceId) ]
+    results = cosmos_container.query_items(
+        query=query,
+        parameters=parameters
+    )
+
+    # At this stage there should only one item in results.
+    for item in results:
+        if item['templateName'] == "tre-workspace-a-msl":
+            suffix = "a"
+        elif item['templateName'] == "tre-workspace-e-msl":
+            suffix = "e"
+        else:
+            logging.error(
+                "Unable do define Workspace Type for workspace %s",
+                workspaceId
+            )
+            raise
+
+    return suffix
+
 
 # =====================================================
 # Generate final SSBS storage account name
 # =====================================================
-async def generate_final_account_name(self, workspace_id, step):
+async def generate_final_account_name(workspace_id, step):
     # Add backwards compatibility. There may be SSBS storage accounts names without suffix.
     # First we try storage accounts with suffix.
     account_name = constants.STORAGE_ACCOUNT_NAME_WORKSPACE_RESOURCE_GROUP_SSBS.format(
         workspace_id[-4:]
     )
-    suffix = await self._get_workspace_type(workspace_id)
+    suffix = await get_workspace_type(workspace_id)
 
     try:
         final_account_name = f"{account_name}{suffix}"
@@ -57,7 +96,7 @@ async def generate_final_account_name(self, workspace_id, step):
 async def get_files(workspace_id: str, protocol_id: str) -> List["DataMoveFile"]:
     try:
         # account_name: str = constants.STORAGE_ACCOUNT_NAME_WORKSPACE_RESOURCE_GROUP_SSBS.format(workspace_id[-4:])+"e"
-        account_name = generate_final_account_name(workspace_id, "LIST_BLOBS_FOR_UI")
+        account_name = await generate_final_account_name(workspace_id, "LIST_BLOBS_FOR_UI")
 
         blob_service_client = BlobServiceClient(
             account_url=get_account_url(account_name),
