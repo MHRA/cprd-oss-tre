@@ -29,6 +29,7 @@ from core import config, credentials
 from resources import constants, strings
 from models.schemas.container_reation_request import ContainerCreateRequest, EntraGroup
 from db.repositories.workspaces import WorkspaceRepository
+from services.data_move import generate_final_account_name
 
 
 # =========================================================
@@ -337,59 +338,12 @@ class StudyContainerProvisioningService:
 
         return suffix
 
-    # =====================================================
-    # Generate final SSBS storage account name
-    # =====================================================
-    async def _generate_final_account_name(self, workspace_id, step):
-        # Add backwards compatibility. There may be SSBS storage accounts names without suffix.
-        # First we try storage accounts with suffix.
-        account_name = constants.STORAGE_ACCOUNT_NAME_WORKSPACE_RESOURCE_GROUP_SSBS.format(
-            workspace_id[-4:]
-        )
-        suffix = await self._get_workspace_type(workspace_id)
-
-        try:
-            final_account_name = f"{account_name}{suffix}"
-            logging.info(
-                "Looking for Storage Account %s. Step: %s.",
-                final_account_name,
-                step
-            )
-            addr = socket.gethostbyname(f"{final_account_name}.blob.core.windows.net")
-
-        except:
-            logging.info(
-                "Storage Account %s does not exist. Trying without suffix. Step %s.",
-                final_account_name,
-                step
-            )
-
-            try:
-                final_account_name = f"{account_name}"
-                addr = socket.gethostbyname(f"{final_account_name}.blob.core.windows.net")
-
-            except:
-                logging.error(
-                    "Storage Account %s does not exist. Workspace ID: %s. Step: %s.",
-                    final_account_name,
-                    workspace_id,
-                    step
-                )
-                raise
-
-        logging.info(
-                "Storage Account %s found. Proceed with saga. Step: %s",
-                final_account_name,
-                step
-            )
-
-        return final_account_name
 
     # =====================================================
     # Container
     # =====================================================
     async def _create_container(self, request, workspace):
-        account_name = await self._generate_final_account_name(request.workspaceId, "CONTAINER_CREATION")
+        account_name = await generate_final_account_name(request.workspaceId, "CONTAINER_CREATION")
         container_name = request.protocolId.lower()  # must be lowercase
 
         # The API appends the suffix to the container name, so we can retrieve the suffix from the container name.
@@ -447,7 +401,7 @@ class StudyContainerProvisioningService:
         return {"name": container_name, "folders": folders}
 
     async def _delete_container(self, workspace_id, container_name):
-        account_name = await self._generate_final_account_name(workspace_id, "CONTAINER_DELETION")
+        account_name = await generate_final_account_name(workspace_id, "CONTAINER_DELETION")
 
         client = BlobServiceClient(
             account_url=f"https://{account_name}.blob.core.windows.net/",
@@ -557,7 +511,7 @@ class StudyContainerProvisioningService:
             config.TRE_ID, workspace_id[-4:]
         )
 
-        account_name = await self._generate_final_account_name(workspace_id, "STORAGE_ACCOUNT_PROPERTIES")
+        account_name = await generate_final_account_name(workspace_id, "STORAGE_ACCOUNT_PROPERTIES")
 
         return client.storage_accounts.get_properties(rg, account_name)
 
@@ -658,7 +612,7 @@ class StudyContainerProvisioningService:
     # Container existence check
     # =====================================================
     async def _assert_container_exists(self, workspace_id, container_name):
-        account_name = await self._generate_final_account_name(workspace_id, "CHECK_CONTAINER_EXISTENCE")
+        account_name = await generate_final_account_name(workspace_id, "CHECK_CONTAINER_EXISTENCE")
 
         client = BlobServiceClient(
             account_url=f"https://{account_name}.blob.core.windows.net/",
