@@ -95,7 +95,6 @@ async def generate_final_account_name(workspace_id, step):
 
 async def get_files(workspace_id: str, protocol_id: str) -> List["DataMoveFile"]:
     try:
-        # account_name: str = constants.STORAGE_ACCOUNT_NAME_WORKSPACE_RESOURCE_GROUP_SSBS.format(workspace_id[-4:])+"e"
         account_name = await generate_final_account_name(workspace_id, "LIST_BLOBS_FOR_UI")
 
         blob_service_client = BlobServiceClient(
