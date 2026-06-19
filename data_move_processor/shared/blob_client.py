@@ -2,6 +2,7 @@ from datetime import timedelta
 import datetime
 import json
 import logging
+import socket
 import os
 import time
 from typing import Dict, Optional, Set
@@ -27,6 +28,54 @@ from shared.config import (
     ANALYSE_WORKSPACE_SSBS_DESTINATION,
     get_tre_id,
 )
+
+# =====================================================
+# Generate final SSBS storage account name
+# =====================================================
+def generate_final_account_name(workspace_id, step):
+    # Add backwards compatibility. There may be SSBS storage accounts names without suffix.
+    # First we try storage accounts with suffix.
+    account_name = STORAGE_ACCOUNT_NAME_WORKSPACE_RESOURCE_GROUP_SSBS.format(
+        workspace_id[-4:]
+    )
+    suffix = get_workspace_type(workspace_id)
+
+    try:
+        final_account_name = f"{account_name}{suffix}"
+        logging.info(
+            "Looking for Storage Account %s. Step: %s.",
+            final_account_name,
+            step
+        )
+        addr = socket.gethostbyname(f"{final_account_name}.blob.core.windows.net")
+
+    except:
+        logging.info(
+            "Storage Account %s does not exist. Trying without suffix. Step %s.",
+            final_account_name,
+            step
+        )
+
+        try:
+            final_account_name = f"{account_name}"
+            addr = socket.gethostbyname(f"{final_account_name}.blob.core.windows.net")
+
+        except:
+            logging.error(
+                "Storage Account %s does not exist. Workspace ID: %s. Step: %s.",
+                final_account_name,
+                workspace_id,
+                step
+            )
+            raise
+
+    logging.info(
+            "Storage Account %s found. Proceed with saga. Step: %s",
+            final_account_name,
+            step
+        )
+
+    return final_account_name
 
 # ==========================================================
 # Credentials (SELF-CONTAINED, SAFE)
@@ -62,11 +111,7 @@ def get_blob_service_client(workspace_id: str) -> BlobServiceClient:
     Create BlobServiceClient for a workspace.
     SAFE: No work done at import time.
     """
-    suffix = get_workspace_type(workspace_id)
-
-    account_name = STORAGE_ACCOUNT_NAME_WORKSPACE_RESOURCE_GROUP_SSBS.format(
-        workspace_id[-4:], suffix
-    )
+    account_name = generate_final_account_name(workspace_id, "GET_BLOB_SERVICE_CLIENT")
 
     return BlobServiceClient(
         account_url=get_account_url(account_name),
