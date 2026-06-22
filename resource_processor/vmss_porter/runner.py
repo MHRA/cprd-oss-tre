@@ -11,7 +11,7 @@ from shared.config import get_config
 from resources.helpers import get_installation_id
 from resources.httpserver import start_server
 
-from shared.logging import disable_unwanted_loggers, initialize_logging, get_message_id_logger, shell_output_logger  # pylint: disable=import-error # noqa
+from shared.logging import disable_unwanted_loggers, initialize_logging, get_message_id_logger, shell_output_logger, redact_sensitive_text  # pylint: disable=import-error # noqa
 from shared.config import VERSION
 from resources import strings, statuses  # pylint: disable=import-error # noqa
 from contextlib import asynccontextmanager
@@ -130,18 +130,20 @@ def service_bus_message_generator(sb_message: dict, status: str, deployment_mess
     Generate a resource request message
     """
     installation_id = get_installation_id(sb_message)
+    safe_deployment_message = redact_sensitive_text(deployment_message)
+
     message_dict = {
         "operationId": sb_message["operationId"],
         "stepId": sb_message["stepId"],
         "id": sb_message["id"],
         "status": status,
-        "message": f"{installation_id}: {deployment_message}"}
+        "message": f"{installation_id}: {safe_deployment_message}"}
 
     if outputs is not None:
         message_dict["outputs"] = outputs
 
     resource_request_message = json.dumps(message_dict)
-    logger_adapter.info(f"Deployment Status Message: {resource_request_message}")
+    logger_adapter.info("Deployment Status Message: %s", redact_sensitive_text(resource_request_message))
     return resource_request_message
 
 
@@ -206,7 +208,9 @@ async def invoke_porter_action(msg_body: dict, sb_client: ServiceBusClient, mess
     # Handle command output
     if returncode != 0:
         err = err or ""
-        error_message = "Error message: " + " ".join(err.split('\n')) + "; Command executed: " + " ".join(porter_command)
+        safe_err = redact_sensitive_text(" ".join(err.split('\n')))
+        safe_command = redact_sensitive_text(" ".join(porter_command))
+        error_message = f"Error message: {safe_err}; Command executed: {safe_command}"
 
         pass_despite_error = False
         if action == "uninstall" and "could not find installation" in err:
@@ -223,7 +227,7 @@ async def invoke_porter_action(msg_body: dict, sb_client: ServiceBusClient, mess
 
         # Post message on sb queue to notify receivers of action failure
         await sb_sender.send_messages(ServiceBusMessage(body=resource_request_message, correlation_id=msg_body["id"], session_id=msg_body["operationId"]))
-        message_logger_adapter.info(f"{installation_id}: Porter action failed with error = {error_message}")
+        message_logger_adapter.info("%s: Porter action failed with error = %s", installation_id, redact_sensitive_text(error_message))
         return pass_despite_error
 
     # Get the outputs
@@ -248,7 +252,7 @@ async def get_porter_outputs(msg_body: dict, message_logger_adapter: logging.Log
     message_logger_adapter.debug("Finished running porter output command.")
 
     if returncode != 0:
-        error_message = "Error context message = " + " ".join((err or "").split('\n'))
+        error_message = redact_sensitive_text("Error context message = " + " ".join((err or "").split('\n')))
         message_logger_adapter.info(f"{get_installation_id(msg_body)}: Failed to get outputs with error = {error_message}")
         return False, ""
 
@@ -263,7 +267,7 @@ async def get_porter_outputs(msg_body: dict, message_logger_adapter: logging.Log
 
         message_logger_adapter.info(f"Got outputs as json: {outputs_json}")
     except ValueError:
-        message_logger_adapter.error(f"Got outputs invalid json: {stdout}")
+        message_logger_adapter.error(f"Got outputs invalid json: {redact_sensitive_text(stdout)}")
 
     return True, outputs_json
 

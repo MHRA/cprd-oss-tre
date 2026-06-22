@@ -5,7 +5,7 @@ import base64
 import uuid
 
 from resources.helpers import get_installation_id
-from shared.logging import shell_output_logger
+from shared.logging import shell_output_logger, redact_sensitive_text
 
 
 def azure_login_command(config):
@@ -199,9 +199,8 @@ async def build_porter_command(config, logger, msg_body, custom_action=False):
         )
 
         command_line = [command]
-        logger.info("command_line %s", command_line)
+        logger.info("command_line %s", redact_sensitive_text(str(command_line)))
         return command_line, inst_file, porter_env
-
 
     # Default path for non-firewall bundles only
     param_set_entries = []
@@ -249,7 +248,7 @@ async def build_porter_command(config, logger, msg_body, custom_action=False):
     )
 
     command_line = [command]
-    logger.info("command_line %s", command_line)
+    logger.info("command_line %s", redact_sensitive_text(str(command_line)))
     return command_line, param_set_file, porter_env
 
 

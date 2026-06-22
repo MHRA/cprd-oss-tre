@@ -37,6 +37,15 @@ LOGGERS_FOR_ERRORS_ONLY = [
     "azure.servicebus.aio._base_handler_async"
 ]
 
+SENSITIVE_FIELD_NAMES = {
+    "client_secret",
+    "auth_client_secret",
+    "arm_client_secret",
+    "APPLICATION_ADMIN_CLIENT_SECRET",
+    "ARM_CLIENT_SECRET",
+    "AUTH_CLIENT_SECRET",
+}
+
 debug = os.environ.get('DEBUG', 'False').lower() in ('true', '1')
 
 
@@ -51,6 +60,48 @@ def disable_unwanted_loggers():
 def telemetry_processor_callback_function(envelope):
     envelope.tags['ai.cloud.role'] = 'resource_processor'
     envelope.tags['ai.application.ver'] = VERSION
+
+
+def redact_sensitive_text(text: str) -> str:
+    """
+    Redacts known secret values from command lines and logged output.
+    Keeps runtime behavior unchanged because this is only applied to text before logging.
+    """
+    if not text:
+        return text
+
+    redacted = text
+
+    for field in SENSITIVE_FIELD_NAMES:
+        patterns = [
+            # terraform style: -var name=value
+            (rf"(-var\s+{re.escape(field)}=)(\".*?\"|\S+)", r"\1REDACTED"),
+            # generic key=value
+            (rf"({re.escape(field)}=)(\".*?\"|\S+)", r"\1REDACTED"),
+            # cli flag style: --field value
+            (rf"(--{re.escape(field)}\s+)(\".*?\"|\S+)", r"\1REDACTED"),
+            # json style: "field": "value"
+            (rf'("{re.escape(field)}"\s*:\s*)(".*?")', r'\1"REDACTED"'),
+            # python dict style: 'field': 'value'
+            (rf"('{re.escape(field)}'\s*:\s*)('.*?')", r"\1'REDACTED'"),
+        ]
+
+        for pattern, replacement in patterns:
+            redacted = re.sub(pattern, replacement, redacted, flags=re.IGNORECASE)
+
+    # Generic password masking
+    generic_patterns = [
+        (r"(--password\s+)(\".*?\"|\S+)", r"\1REDACTED"),
+        (r"(-password\s+)(\".*?\"|\S+)", r"\1REDACTED"),
+        (r"(password=)(\".*?\"|\S+)", r"\1REDACTED"),
+        (r'("password"\s*:\s*)(".*?")', r'\1"REDACTED"'),
+        (r"('password'\s*:\s*)('.*?')", r"\1'REDACTED'"),
+    ]
+
+    for pattern, replacement in generic_patterns:
+        redacted = re.sub(pattern, replacement, redacted, flags=re.IGNORECASE)
+
+    return redacted
 
 
 def initialize_logging(logging_level: int, correlation_id: str, add_console_handler: bool = False) -> logging.LoggerAdapter:
@@ -132,6 +183,7 @@ def shell_output_logger(console_output: str, prefix_item: str, logger: logging.L
         return
 
     console_output = console_output.strip()
+    console_output = redact_sensitive_text(console_output)
 
     if (logging_level != logging.INFO
             and len(console_output) < 200
@@ -164,6 +216,7 @@ class AzureLogFormatter(logging.Formatter):
     def format(self, record):
         s = super().format(record)
         s = AzureLogFormatter.ansi_escape.sub('', s)
+        s = redact_sensitive_text(s)
 
         # not doing this here might produce errors if we try to log empty strings.
         if (s == ''):
