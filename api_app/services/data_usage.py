@@ -395,11 +395,21 @@ class DataUsageService:
             )
             raise
 
-    async def get_protocolItem(self, protocolId: str) -> MHRAProtocolItem:
+    def estimate_copy_time(self, total_size_gb: float) -> float:
+
+        if total_size_gb <= 0:
+            return 0.0
+
+        speed: float = 1024/8
+        total_minutes: float = total_size_gb / speed
+        return round(total_minutes, 2)
+
+
+    async def get_protocolItem(self, workspaceId: str, protocolId: str) -> MHRAProtocolItem:
         container_perstudy_table = constants.WORKSPACE_PERSTUDY_USAGE_TABLE_NAME
 
         try:
-            query_filter = f"ProtocolId eq '{protocolId}'"
+            query_filter = f"ProtocolId eq '{protocolId}' and WorkspaceId eq '{workspaceId}' and Latest eq true"
             table_client = self.client.get_table_client(table_name=container_perstudy_table)
             entities = list(table_client.query_entities(query_filter))
 
@@ -409,18 +419,22 @@ class DataUsageService:
             entity = entities[0]
 
             return MHRAProtocolItem(
-                workspace_name=entity.get('WorkspaceName', ''),
-                workspace_id=entity.get('WorkspaceId', ''),
-                storage_name=entity.get('StorageName', ''),
-                storage_limits=self._format_size(entity.get('StorageLimits', 0)),
-                protocol_id=entity.get('ProtocolId', ''),
-                protocol_data_usage=self._format_size(entity.get('ProtocolDataUsage', 0)),
-                protocol_data_remaining=self._format_size(
-                    entity.get('StorageLimits', 0) - entity.get('ProtocolDataUsage', 0)
-                ),
-                status=entity.get('Status', ''),
-                protocol_percentage_usage=math.floor(entity.get('ProtocolPercentageUsage', 0)),
-                timestamp=entity.metadata['timestamp']
+                 workspace_name=entity.get("WorkspaceName", ""),
+                        workspace_id=entity.get("WorkspaceId", ""),
+                        storage_name=entity.get("StorageName", ""),
+                        storage_limits=self._format_size(entity.get("StorageLimits", 0)),
+                        protocol_id=entity.get("ProtocolId", ""),
+                        protocol_data_usage=self._format_size(entity.get("ProtocolDataUsage", 0)),
+                        protocol_data_remaining=self._format_size(
+                            entity.get("StorageLimits", 0) - entity.get("ProtocolDataUsage", 0)
+                        ),
+                        protocol_percentage_usage=math.floor(
+                            entity.get("ProtocolPercentageUsage", 0)
+                        ),
+                        status=entity.get('Status', ''),
+                        timestamp=entity.metadata.get("timestamp"),
+                        filesSize=0.0,
+                        estimated_time=0.0
             )
 
         except HttpResponseError:

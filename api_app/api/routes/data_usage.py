@@ -113,13 +113,31 @@ async def create_container(conatiner_create_request: ContainerCreateRequest = No
         logging.exception("Failed to create container.")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to create container")
 
-@get_storage_account_limits.get("/protocol_item/{protocolId}", response_model=MHRAProtocolList,
+@get_storage_account_limits.get("/protocol_item/{workspaceId}/{protocolId}", response_model=MHRAProtocolItem,
                        status_code=status.HTTP_200_OK,
                        name=strings.API_GET_PERSTUDY_ITEMS,
                        dependencies=[Depends(get_current_workspace_owner_or_tre_user_or_tre_admin)])
-async def get_perstudy_item_method(protocolId: str, data_usage_service: DataUsageService = Depends(data_usage_service_factory)) -> MHRAProtocolItem:
+async def get_perstudy_item_method(
+    workspaceId: str,
+    protocolId: str,
+    data_usage_service: DataUsageService = Depends(data_usage_service_factory)
+) -> MHRAProtocolItem:
     try:
-        return await data_usage_service.get_protocolItem(protocolId)
+        item = await data_usage_service.get_protocolItem(workspaceId, protocolId)
+
+        if item is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Protocol item not found"
+            )
+
+        return item
+
+    except HTTPException:
+        raise
     except Exception as exc:
         logging.exception("Failed to retrieve Protocol item: %s", exc)
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=strings.API_GET_WORKSPACE_DATA_USAGE_INTERNAL_SERVER_ERROR)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=strings.API_GET_WORKSPACE_DATA_USAGE_INTERNAL_SERVER_ERROR
+        )
