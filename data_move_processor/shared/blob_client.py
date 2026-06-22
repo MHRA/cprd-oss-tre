@@ -264,10 +264,11 @@ def check_container_integrity(
         prefix=f"{EXPLORE_WORKSPACE_SSBS_ORIGIN_FOLDER}/",
     )
 
-
+    # We do not copy empty files. It avoids copying empty folders.
     source_files: Dict[str, int] = {
-        blob["FileName"].rsplit("/", 1)[-1]: blob["FileSize"]
+        blob["FileName"].split("/", 1)[-1]: blob["FileSize"]
         for blob in source_blobs
+        if blob["FileSize"] > 0
     }
 
     source_size: int = sum(source_files.values())
@@ -284,20 +285,20 @@ def check_container_integrity(
         pending_found = False
 
         for blob in dest_blobs:
-            filename = blob["FileName"].rsplit("/", 1)[-1]
+            filename = blob["FileName"].split("/", 1)[-1]
 
             if filename not in source_files:
                 continue
 
             matched_files.add(filename)
 
-            # copy_status = blob.get("copy", {}).get("status")
             copy_status = blob.get("copyStatus")
 
             if copy_status == "pending":
                 logging.info(
-                    "Blob %s is in peding state. Still being copied.",
-                    filename
+                    "Blob %s is in peding state. Still being copied. Waiting %s seconds.",
+                    filename,
+                    RETRY_DELAY_SECONDS
                 )
                 pending_found = True
                 continue

@@ -233,7 +233,7 @@ class StudyContainerProvisioningService:
     async def saga_assign_role(self, ctx, request):
         logging.info(f"Assigning RBAC role to group {ctx.group_id} for container {ctx.container_name}")
         max_retries = 6
-        delay = 15  # seconds
+        delay = 30  # seconds
 
         for attempt in range(1, max_retries + 1):
             try:
@@ -294,6 +294,7 @@ class StudyContainerProvisioningService:
                 await asyncio.sleep(delay)
                 delay *= 2  # exponential backoff
 
+        logging.info(f"RBAC role to group {ctx.group_id} assigned for container {ctx.container_name}")
 
     async def saga_update_table(self, ctx, request):
         await self.set_perstudy_items(

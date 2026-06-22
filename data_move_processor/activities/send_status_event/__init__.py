@@ -48,7 +48,7 @@ async def send_status_event(message: dict) -> None:
                 "template_id": config.NOTIFY_UK_TEMPLATE_ID,
                 "personalisation": {
                     "status": message.get("status"),
-                    "workspace_id": req.get("workspace_id"),
+                    "workspace_id": req.get("workspaceId"),
                     "transaction_id": message.get("transaction"),
                 }
             }
