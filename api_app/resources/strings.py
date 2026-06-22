@@ -296,3 +296,4 @@ RESOURCES_CONTAINER_NAME = "Resources"
 
 API_CREATE_DATA_MOVE_REQUEST = "Create a data move request"
 API_LIST_DATA_MOVE_REQUESTS = "Get all data move requests for a workspace"
+API_GET_DATA_MOVE_STATUS = "Get the status of a data move Transaction"

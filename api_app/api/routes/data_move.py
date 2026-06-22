@@ -236,6 +236,41 @@ async def get_all_datamove_requests_by_workspace(workspace_id: str,
         )
 
 
+# -------------------------
+# GET STATUS OF THE LAST REQUEST FOR A PROTOCOL
+# -------------------------
+@datamove_core_router.get(
+    "/workspaces/{workspace_id}/{protocol_id}/data_move/status",
+    status_code=status_code.HTTP_200_OK,
+    response_model=Dict[str, str],
+    name=strings.API_GET_DATA_MOVE_STATUS,
+    dependencies=[
+        Depends(get_current_tre_user_or_tre_admin),],
+)
+async def get_datamove_status(workspace_id: str, protocol_id: str,
+    datamove_request_repo=Depends(get_repository(DataMoveRepository)),
+) -> Dict[str, str]:
+
+    try:
+        datamove_requests = await datamove_request_repo.get_datamove_in_progress_transactions(
+            workspace_id=workspace_id,
+            protocol_id=protocol_id
+        )
+
+        if not datamove_requests or len(datamove_requests) == 0:
+            return {"status": "False", "message": "No data move operations in progress for this workspace"}
+        else:
+            return {"status": "True", "message": f"Data move operation in progress for this workspace."}
+
+
+    except (ValidationError, ValueError) as e:
+        logging.exception(
+            "Failed retrieving the data move status for a workspace and protocol"
+        )
+        raise HTTPException(
+            status_code=status_code.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )
 
 # -------------------------
 # SAVE + PUBLISH EVENT
