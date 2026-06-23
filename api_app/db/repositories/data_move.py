@@ -37,6 +37,20 @@ class DataMoveRepository(BaseRepository):
 
         return parse_obj_as(List[DataMoveTransactions], datamove_requests)
 
+    async def get_datamove_in_progress_transactions(self, workspace_id: str, protocol_id: str) -> List[DataMoveTransactions]:
+        query = "SELECT * FROM c WHERE c.workspaceId = @workspace_id AND c.protocol_id = @protocol_id AND c.status = 'STARTED'"
+        parameters = [
+            {"name": "@workspace_id", "value": workspace_id},
+            {"name": "@protocol_id", "value": protocol_id}
+        ]
+
+        datamove_requests = await self.query(
+            query=query,
+            parameters=parameters
+        )
+
+        return parse_obj_as(List[DataMoveTransactions], datamove_requests)
+
     def create_datamove_request_item(
         self,
         emsl_protocol_id: str,

@@ -452,11 +452,11 @@ class DataUsageService:
 
 
 
-    async def get_protocolItem(self, protocolId: str) -> MHRAProtocolItem:
+    async def get_protocolItem(self, workspaceId: str, protocolId: str) -> MHRAProtocolItem:
         container_perstudy_table = constants.WORKSPACE_PERSTUDY_USAGE_TABLE_NAME
 
         try:
-            query_filter = f"ProtocolId eq '{protocolId}'"
+            query_filter = f"ProtocolId eq '{protocolId}' and WorkspaceId eq '{workspaceId}' and Latest eq true"
             table_client = self.client.get_table_client(table_name=container_perstudy_table)
             entities = list(table_client.query_entities(query_filter))
 
@@ -477,7 +477,9 @@ class DataUsageService:
                 ),
                 status=entity.get('Status', ''),
                 protocol_percentage_usage=math.floor(entity.get('ProtocolPercentageUsage', 0)),
-                timestamp=entity.metadata['timestamp']
+                timestamp=entity.metadata['timestamp'],
+                filesSize=0.0,
+                estimated_time=0.0,
             )
 
         except HttpResponseError:
