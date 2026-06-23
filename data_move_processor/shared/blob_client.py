@@ -296,7 +296,7 @@ def check_container_integrity(
 
             if copy_status == "pending":
                 logging.info(
-                    "Blob %s is in peding state. Still being copied. Waiting %s seconds.",
+                    "Blob %s is in pending state. Still being copied. Waiting %s seconds.",
                     filename,
                     RETRY_DELAY_SECONDS
                 )
