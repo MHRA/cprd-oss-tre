@@ -233,7 +233,7 @@ class StudyContainerProvisioningService:
     async def saga_assign_role(self, ctx, request):
         logging.info(f"Assigning RBAC role to group {ctx.group_id} for container {ctx.container_name}")
         max_retries = 6
-        delay = 30  # seconds
+        delay = 60  # seconds
 
         for attempt in range(1, max_retries + 1):
             try:
@@ -271,17 +271,21 @@ class StudyContainerProvisioningService:
                     client.role_assignments.delete_by_id(assignment_id)
 
                 ctx.compensations.append(compensate)
+
+                logging.info(f"RBAC role with group ID {ctx.group_id} assigned to container {ctx.container_name}")
+
                 return  # success → exit saga step
 
             except Exception as exc:
                 logging.warning(
                     "RBAC assignment attempt %s/%s failed "
-                    "(workspace=%s, container=%s, group=%s)",
+                    "(workspace=%s, container=%s, group=%s). Waiting %s seconds.",
                     attempt,
                     max_retries,
                     request.workspaceId,
                     ctx.container_name,
                     ctx.group_id,
+                    delay
                 )
 
                 if attempt == max_retries:
@@ -293,8 +297,6 @@ class StudyContainerProvisioningService:
 
                 await asyncio.sleep(delay)
                 delay *= 2  # exponential backoff
-
-        logging.info(f"RBAC role to group {ctx.group_id} assigned for container {ctx.container_name}")
 
     async def saga_update_table(self, ctx, request):
         await self.set_perstudy_items(
