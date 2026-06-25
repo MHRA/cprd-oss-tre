@@ -162,9 +162,14 @@ async def get_all_datamove_requests_by_workspace(
 ) -> DataMoveTransactionResponseList:
 
     try:
-        datamove_requests = await datamove_request_repo.get_datamove_requests(
-            workspace_id=workspace.id
-        )
+        if workspace.templateName == strings.E_MSL_WORKSPACE:
+            datamove_requests = await datamove_request_repo.get_datamove_requests(
+                workspace_id=workspace.id
+            )
+        else:
+            datamove_requests = await datamove_request_repo.get_amsl_datamove_requests(
+                workspace_id=workspace.id
+            )
 
         return DataMoveTransactionResponseList(
             dataMoveTransactions=[
@@ -204,12 +209,20 @@ async def get_all_datamove_requests_by_workspace(
 )
 async def get_all_datamove_requests_by_workspace(workspace_id: str,
     datamove_request_repo=Depends(get_repository(DataMoveRepository)),
+    workspaceRepo=Depends(get_repository(WorkspaceRepository)),
 ) -> DataMoveTransactionResponseList:
 
     try:
-        datamove_requests = await datamove_request_repo.get_datamove_requests(
-            workspace_id=workspace_id
-        )
+
+        workspace_template_name = await workspaceRepo.get_workspace_type_by_id(workspace_id)
+        if  workspace_template_name == strings.E_MSL_WORKSPACE:
+            datamove_requests = await datamove_request_repo.get_datamove_requests(
+                workspace_id=workspace_id
+            )
+        else:
+            datamove_requests = await datamove_request_repo.get_amsl_datamove_requests(
+                workspace_id=workspace_id
+            )
 
         return DataMoveTransactionResponseList(
             dataMoveTransactions=[
