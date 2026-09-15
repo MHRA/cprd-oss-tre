@@ -142,7 +142,7 @@ mixins:
   - terraform:
       clientVersion: 1.3.6
   - az:
-      clientVersion: 2.37.0
+      clientVersion: 2.57.0
 
 install:
   - terraform:

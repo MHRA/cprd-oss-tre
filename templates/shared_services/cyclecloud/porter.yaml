@@ -1,7 +1,7 @@
 ---
 schemaVersion: 1.0.0
 name: tre-shared-service-cyclecloud
-version: 0.4.0
+version: 0.4.1
 description: "An Azure TRE Shared Service Template for Azure Cyclecloud"
 registry: azuretre
 dockerfile: Dockerfile.tmpl
@@ -51,7 +51,7 @@ mixins:
   - terraform:
       clientVersion: 1.3.6
   - az:
-      clientVersion: 2.37.0
+      clientVersion: 2.57.0
 
 install:
   - terraform:
