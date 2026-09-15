@@ -1,12 +1,12 @@
 # syntax=docker/dockerfile:1
-FROM python:3.8-slim-bullseye
+FROM python:3.8-slim-bookworm
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
 RUN rm -f /etc/apt/apt.conf.d/docker-clean; echo 'Binary::apt::APT::Keep-Downloaded-Packages "true";' > /etc/apt/apt.conf.d/keep-cache
 
 # Install Azure CLI
-ARG AZURE_CLI_VERSION=2.80.0-1~bullseye
+ARG AZURE_CLI_VERSION=2.57.0-1~bookworm
 COPY scripts/azure-cli.sh /tmp/
 RUN --mount=type=cache,target=/var/cache/apt --mount=type=cache,target=/var/lib/apt \
     export AZURE_CLI_VERSION=${AZURE_CLI_VERSION} \
@@ -54,7 +54,7 @@ RUN --mount=type=cache,target=/var/cache/apt --mount=type=cache,target=/var/lib/
     && curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg \
     && echo "deb [arch=amd64 signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/debian $(lsb_release -cs) stable" \
     | tee /etc/apt/sources.list.d/docker.list > /dev/null \
-    && apt-get update && apt-get install -y docker-ce="5:27.5.1-1~debian.11~bullseye" docker-ce-cli="5:27.5.1-1~debian.11~bullseye" containerd.io="1.6.24-1" --no-install-recommends
+    && apt-get update && apt-get install -y docker-ce="5:27.5.1-1~debian.12~bookworm" docker-ce-cli="5:27.5.1-1~debian.12~bookworm" containerd.io="1.6.24-1" --no-install-recommends
 
 COPY ./vmss_porter/config.yaml ${PORTER_HOME_V1}/
 
