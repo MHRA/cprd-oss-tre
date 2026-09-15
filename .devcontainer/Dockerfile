@@ -3,7 +3,7 @@
 # [Choice] Python version: 3, 3.9, 3.8, 3.7, 3.6
 ARG VARIANT="3.8"
 ARG TARGETPLATFORM="linux/amd64"
-FROM --platform="${TARGETPLATFORM}" mcr.microsoft.com/vscode/devcontainers/python:dev-${VARIANT}-bullseye
+FROM --platform="${TARGETPLATFORM}" mcr.microsoft.com/vscode/devcontainers/python:dev-${VARIANT}-bookworm
 
 # This will be set to true when running in VSCode
 ARG INTERACTIVE="false"
@@ -32,12 +32,15 @@ ARG DOCKER_GROUP_ID
 COPY .devcontainer/scripts/docker-client.sh /tmp/
 RUN /tmp/docker-client.sh $USERNAME
 
+# Remove stale Yarn repository inherited from base image
+RUN rm -f /etc/apt/sources.list.d/yarn.list
+
 # Install Docker
 RUN apt-get update && apt-get install -y ca-certificates curl gnupg lsb-release --no-install-recommends \
     && curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg \
     && echo "deb [arch=amd64 signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/debian $(lsb_release -cs) stable" \
     | tee /etc/apt/sources.list.d/docker.list > /dev/null \
-    && apt-get update && apt-get install -y docker-ce="5:20.10.21~3-0~debian-bullseye" docker-ce-cli="5:20.10.21~3-0~debian-bullseye" containerd.io="1.6.12-1" --no-install-recommends \
+    && apt-get update && apt-get install -y docker-ce="5:24.0.0-1~debian.12~bookworm" docker-ce-cli="5:24.0.0-1~debian.12~bookworm" docker-compose-plugin="2.21.0-1~debian.12~bookworm" containerd.io="1.6.24-1" docker-buildx-plugin --no-install-recommends \
     && apt-get clean -y && rm -rf /var/lib/apt/lists/*
 
 # Install Certbot
@@ -95,7 +98,7 @@ COPY ["airlock_processor/requirements.txt", "/tmp/pip-tmp/airlock_processor/"]
 RUN pip3 --disable-pip-version-check --no-cache-dir install -r /tmp/pip-tmp/requirements.txt
 
 # Install azure-cli
-ARG AZURE_CLI_VERSION=2.37.0-1~bullseye
+ARG AZURE_CLI_VERSION=2.57.0-1~bookworm
 COPY .devcontainer/scripts/azure-cli.sh /tmp/
 RUN export AZURE_CLI_VERSION=${AZURE_CLI_VERSION} \
     && /tmp/azure-cli.sh

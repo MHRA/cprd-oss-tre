@@ -101,6 +101,16 @@ class CostItem(BaseModel):
     name: str
     costs: List[CostRow]
 
+#CNN Code
+class UserDetails(BaseModel):
+    entra_id: Optional[str]
+    user_full_name: str
+    email: Optional[str]
+    virtual_machine_name: Optional[str]
+
+
+class UserResourceCostItem(CostItem):
+    user_details: Optional[UserDetails]
 
 class CostReport(BaseModel):
     core_services: List[CostRow]
@@ -109,7 +119,7 @@ class CostReport(BaseModel):
 
 
 class WorkspaceServiceCostItem(CostItem):
-    user_resources: List[CostItem]
+    user_resources: List[UserResourceCostItem]
 
 
 class WorkspaceCostReport(CostItem):
