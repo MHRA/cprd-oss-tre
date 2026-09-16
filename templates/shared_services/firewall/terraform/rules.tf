@@ -93,6 +93,7 @@ resource "azurerm_firewall_policy_rule_collection_group" "core" {
         "azure.archive.ubuntu.com",
         "security.ubuntu.com",
         "entropy.ubuntu.com",
+        "*.snapcraftcontent.com",
       ]
       source_ip_groups = [data.azurerm_ip_group.resource_processor.id]
     }
