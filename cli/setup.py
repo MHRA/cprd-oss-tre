@@ -46,7 +46,9 @@ setup(
         "jmespath==1.0.1",
         "tabulate==0.9.0",
         "pygments==2.14.0",
-        "PyJWT==2.6.0"
+        "PyJWT==2.6.0",
+        "requests==2.32.5",
+        "urllib3==2.5.0"
     ],
 
     namespace_packages=[],
