@@ -179,8 +179,6 @@ async def build_porter_command(config, logger, msg_body, custom_action=False):
                     type(resolved_raw_params[parameter_name]).__name__
                 )
 
-        installation["parameters"] = installation_parameters
-
         logger.info(
             "Rebuilt firewall installation parameters with names: %s",
             list(installation_parameters.keys())
@@ -190,17 +188,40 @@ async def build_porter_command(config, logger, msg_body, custom_action=False):
         with open(inst_file, "w", encoding="utf-8") as f:
             json.dump(installation, f)
 
+        param_set_name = f"tre-params-{installation_id}-{uuid.uuid4().hex[:8]}"
+        param_set_file = f"/tmp/{param_set_name}.json"
+
+        param_set = {
+            "schemaType": "ParameterSet",
+            "schemaVersion": "1.0.1",
+            "name": param_set_name,
+            "namespace": "",
+            "parameters": [
+                {"name": parameter_name, "source": {"value": parameter_value}}
+                for parameter_name, parameter_value in installation_parameters.items()
+            ]
+        }
+
+        with open(param_set_file, "w", encoding="utf-8") as f:
+            json.dump(param_set, f)
+
+        logger.info("Firewall parameter set file path: %s", param_set_file)
+
+        installation["parameters"] = {}
+        installation["parameterSets"] = [param_set_name]
+
         logger.info("Firewall installation apply file path: %s", inst_file)
 
         command = (
             f"{azure_login_command(config)} && "
             f"{azure_acr_login_command(config)} && "
-            f"porter installation apply {inst_file}"
+            f"porter parameters apply {param_set_file} && "
+            f"porter installation apply {installation_id}"
         )
 
         command_line = [command]
         logger.info("command_line %s", redact_sensitive_text(str(command_line)))
-        return command_line, inst_file, porter_env
+        return command_line, [inst_file, param_set_file], porter_env
 
     # Default path for non-firewall bundles only
     param_set_entries = []
@@ -249,7 +270,7 @@ async def build_porter_command(config, logger, msg_body, custom_action=False):
 
     command_line = [command]
     logger.info("command_line %s", redact_sensitive_text(str(command_line)))
-    return command_line, param_set_file, porter_env
+    return command_line, [param_set_file] if param_set_file else [], porter_env
 
 
 async def build_porter_command_for_outputs(msg_body):
