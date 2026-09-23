@@ -184,12 +184,15 @@ async def build_porter_command(config, logger, msg_body, custom_action=False):
             list(installation_parameters.keys())
         )
 
+        param_set_name = f"tre-params-{installation_id}-{uuid.uuid4().hex[:8]}"
+        param_set_file = f"/tmp/{param_set_name}.json"
+
+        installation["parameters"] = {}
+        installation["parameterSets"] = [param_set_name]
+
         inst_file = f"/tmp/{installation_id}-installation.json"
         with open(inst_file, "w", encoding="utf-8") as f:
             json.dump(installation, f)
-
-        param_set_name = f"tre-params-{installation_id}-{uuid.uuid4().hex[:8]}"
-        param_set_file = f"/tmp/{param_set_name}.json"
 
         param_set = {
             "schemaType": "ParameterSet",
@@ -207,16 +210,13 @@ async def build_porter_command(config, logger, msg_body, custom_action=False):
 
         logger.info("Firewall parameter set file path: %s", param_set_file)
 
-        installation["parameters"] = {}
-        installation["parameterSets"] = [param_set_name]
-
         logger.info("Firewall installation apply file path: %s", inst_file)
 
         command = (
             f"{azure_login_command(config)} && "
             f"{azure_acr_login_command(config)} && "
             f"porter parameters apply {param_set_file} && "
-            f"porter installation apply {installation_id}"
+            f"porter installation apply {inst_file}"
         )
 
         command_line = [command]
