@@ -157,6 +157,7 @@ async def build_porter_command(config, logger, msg_body, custom_action=False):
     # - write literal parameter values into installation.parameters
     # - keep command line short by applying a JSON file from disk
     if bundle_name == "tre-shared-service-firewall":
+        installation = await _get_porter_installation(config, logger, installation_id)
         installation_parameters = {}
 
         large_encoded_params = {"rule_collections", "network_rule_collections"}
@@ -185,6 +186,13 @@ async def build_porter_command(config, logger, msg_body, custom_action=False):
         param_set_name = f"tre-params-{installation_id}-{uuid.uuid4().hex[:8]}"
         param_set_file = f"/tmp/{param_set_name}.json"
 
+        installation["parameters"] = {}
+        installation["parameterSets"] = [param_set_name]
+
+        inst_file = f"/tmp/{installation_id}-installation.json"
+        with open(inst_file, "w", encoding="utf-8") as f:
+            json.dump(installation, f)
+
         param_set = {
             "schemaType": "ParameterSet",
             "schemaVersion": "1.0.1",
@@ -201,18 +209,19 @@ async def build_porter_command(config, logger, msg_body, custom_action=False):
 
         logger.info("Firewall parameter set file path: %s", param_set_file)
 
+        logger.info("Firewall installation apply file path: %s", inst_file)
+
         command = (
             f"{azure_login_command(config)} && "
             f"{azure_acr_login_command(config)} && "
             f"porter parameters apply {param_set_file} && "
-            f"porter installation apply \"{installation_id}\" "
-            f"--parameter-set {param_set_name} "
+            f"porter installation apply {inst_file} "
             f"--force"
         )
 
         command_line = [command]
         logger.info("command_line %s", redact_sensitive_text(str(command_line)))
-        return command_line, [param_set_file], porter_env
+        return command_line, [inst_file, param_set_file], porter_env
 
     # Default path for non-firewall bundles only
     param_set_entries = []
