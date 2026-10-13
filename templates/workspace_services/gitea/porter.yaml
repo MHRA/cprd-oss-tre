@@ -62,7 +62,7 @@ mixins:
   - terraform:
       clientVersion: 1.6.6
   - az:
-      clientVersion: 2.37.0
+      clientVersion: 2.57.0
 
 outputs:
   - name: internal_connection_uri
