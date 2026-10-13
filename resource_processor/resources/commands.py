@@ -10,11 +10,11 @@ from shared.logging import shell_output_logger, redact_sensitive_text
 
 def azure_login_command(config):
     if config["vmss_msi_id"]:
-        command = f"az login --identity --client-id {config['vmss_msi_id']}"
+        command = f"az login --identity --username {config['vmss_msi_id']}"
     else:
         command = (
             f"az login --service-principal "
-            f"--client-id {config['arm_client_id']} "
+            f"--username {config['arm_client_id']} "
             f"--password {config['arm_client_secret']} "
             f"--tenant {config['arm_tenant_id']}"
         )
