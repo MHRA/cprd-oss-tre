@@ -107,6 +107,7 @@ async def build_porter_command(config, logger, msg_body, custom_action=False):
 
     resolved_params = {}
     resolved_raw_params = {}
+    large_encoded_params = {"rule_collections", "network_rule_collections"}
 
     if porter_parameter_keys is None:
         logger.warning("Unknown porter parameters - explain probably failed.")
@@ -136,7 +137,7 @@ async def build_porter_command(config, logger, msg_body, custom_action=False):
 
             if parameter_value is not None or (
                 bundle_name == "tre-shared-service-firewall"
-                and parameter_name in {"rule_collections", "network_rule_collections"}
+                and parameter_name in large_encoded_params
             ):
                 encoded_value = _encode_porter_value(parameter_value)
                 resolved_params[parameter_name] = encoded_value
@@ -159,8 +160,6 @@ async def build_porter_command(config, logger, msg_body, custom_action=False):
     if bundle_name == "tre-shared-service-firewall":
         installation = await _get_porter_installation(config, logger, installation_id)
         installation_parameters = {}
-
-        large_encoded_params = {"rule_collections", "network_rule_collections"}
 
         for parameter_name in porter_parameter_keys or []:
             if parameter_name in large_encoded_params and parameter_name in resolved_params:
