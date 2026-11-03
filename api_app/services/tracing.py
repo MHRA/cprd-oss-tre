@@ -87,4 +87,4 @@ class RequestTracerMiddleware(BaseHTTPMiddleware):
             module_logger.error("Failed to trace response", exc_info=True)
         finally:
             tracer.end_span()
-            return response
+        return response

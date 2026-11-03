@@ -17,6 +17,7 @@ UNWANTED_LOGGERS = [
     "azure.identity.aio._internal.get_token_mixin",
     "azure.identity.aio._internal.decorators",
     "azure.identity.aio._credentials.chained",
+    "azure.identity.aio._credentials.default",
     "azure.identity",
     "msal.token_cache"
 ]
@@ -34,6 +35,8 @@ LOGGERS_FOR_ERRORS_ONLY = [
     "uamqp.async_ops.session_async",
     "uamqp.sender",
     "uamqp.client",
+    "azure.servicebus._pyamqp",
+    "azure.servicebus.aio._pyamqp",
     "azure.servicebus.aio._base_handler_async"
 ]
 
@@ -55,6 +58,16 @@ def disable_unwanted_loggers():
     """
     for logger_name in UNWANTED_LOGGERS:
         logging.getLogger(logger_name).disabled = True
+
+
+class ExcludeOpencensusFilter(logging.Filter):
+    """
+    Stops the exporter's own log records (e.g. 'Queue is full. Dropping telemetry.') being sent back into
+    the AzureLogHandler. Without this, a full export queue logs a warning that is queued again, recursing until
+    RecursionError kills the service bus receivers.
+    """
+    def filter(self, record):
+        return not record.name.startswith("opencensus")
 
 
 def telemetry_processor_callback_function(envelope):
@@ -136,6 +149,7 @@ def initialize_logging(logging_level: int, correlation_id: str, add_console_hand
         azurelog_handler.add_telemetry_processor(telemetry_processor_callback_function)
         azurelog_formatter = AzureLogFormatter()
         azurelog_handler.setFormatter(azurelog_formatter)
+        azurelog_handler.addFilter(ExcludeOpencensusFilter())
         logger.addHandler(azurelog_handler)
     except ValueError as e:
         logger.error(f"Failed to set Application Insights logger handler: {e}")

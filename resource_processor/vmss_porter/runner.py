@@ -293,6 +293,8 @@ async def check_runners(processes: list, httpserver: Process, logger_adapter: lo
         if all(not process.is_alive() for process in processes):
             logger_adapter.error("All runner processes have failed!")
             httpserver.kill()
+            # exit so the container stops and docker (--restart always) starts a fresh one
+            return
 
 
 if __name__ == "__main__":
@@ -316,4 +318,5 @@ if __name__ == "__main__":
 
     asyncio.run(check_runners(processes, httpserver, logger_adapter))
 
-    logger_adapter.warn("Exiting main...")
+    logger_adapter.warning("Exiting main...")
+    sys.exit(1)
