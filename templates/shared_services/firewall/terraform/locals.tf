@@ -12,8 +12,11 @@ locals {
     tre_shared_service_id = var.tre_resource_id
   }
 
-  api_driven_application_rule_collection = jsondecode(base64decode(file(var.api_driven_rule_collections_file)))
-  api_driven_network_rule_collection     = jsondecode(base64decode(file(var.api_driven_network_rule_collections_file)))
+  # Porter declares these as "file" type parameters (base64-encoded content), so by
+  # the time the bundle runs, Porter has already base64-decoded the value and
+  # written the raw JSON to the path - no extra base64decode() needed here.
+  api_driven_application_rule_collection = jsondecode(file(var.api_driven_rule_collections_file))
+  api_driven_network_rule_collection     = jsondecode(file(var.api_driven_network_rule_collections_file))
 
   firewall_policy_name = "fw-policy-${var.tre_id}"
 }
