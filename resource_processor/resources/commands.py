@@ -107,6 +107,7 @@ async def build_porter_command(config, logger, msg_body, custom_action=False):
 
     resolved_params = {}
     resolved_raw_params = {}
+    large_encoded_params = {"rule_collections", "network_rule_collections"}
 
     if porter_parameter_keys is None:
         logger.warning("Unknown porter parameters - explain probably failed.")
@@ -136,7 +137,7 @@ async def build_porter_command(config, logger, msg_body, custom_action=False):
 
             if parameter_value is not None or (
                 bundle_name == "tre-shared-service-firewall"
-                and parameter_name in {"rule_collections", "network_rule_collections"}
+                and parameter_name in large_encoded_params
             ):
                 encoded_value = _encode_porter_value(parameter_value)
                 resolved_params[parameter_name] = encoded_value
@@ -158,10 +159,7 @@ async def build_porter_command(config, logger, msg_body, custom_action=False):
     # - keep command line short by applying a JSON file from disk
     if bundle_name == "tre-shared-service-firewall":
         installation = await _get_porter_installation(config, logger, installation_id)
-
         installation_parameters = {}
-
-        large_encoded_params = {"rule_collections", "network_rule_collections"}
 
         for parameter_name in porter_parameter_keys or []:
             if parameter_name in large_encoded_params and parameter_name in resolved_params:
@@ -179,28 +177,50 @@ async def build_porter_command(config, logger, msg_body, custom_action=False):
                     type(resolved_raw_params[parameter_name]).__name__
                 )
 
-        installation["parameters"] = installation_parameters
-
         logger.info(
             "Rebuilt firewall installation parameters with names: %s",
             list(installation_parameters.keys())
         )
 
+        param_set_name = f"tre-params-{installation_id}-{uuid.uuid4().hex[:8]}"
+        param_set_file = f"/tmp/{param_set_name}.json"
+
+        installation["parameters"] = {}
+        installation["parameterSets"] = [param_set_name]
+
         inst_file = f"/tmp/{installation_id}-installation.json"
         with open(inst_file, "w", encoding="utf-8") as f:
             json.dump(installation, f)
+
+        param_set = {
+            "schemaType": "ParameterSet",
+            "schemaVersion": "1.0.1",
+            "name": param_set_name,
+            "namespace": "",
+            "parameters": [
+                {"name": parameter_name, "source": {"value": parameter_value}}
+                for parameter_name, parameter_value in installation_parameters.items()
+            ]
+        }
+
+        with open(param_set_file, "w", encoding="utf-8") as f:
+            json.dump(param_set, f)
+
+        logger.info("Firewall parameter set file path: %s", param_set_file)
 
         logger.info("Firewall installation apply file path: %s", inst_file)
 
         command = (
             f"{azure_login_command(config)} && "
             f"{azure_acr_login_command(config)} && "
-            f"porter installation apply {inst_file}"
+            f"porter parameters apply {param_set_file} && "
+            f"porter installation apply {inst_file} "
+            f"--force"
         )
 
         command_line = [command]
         logger.info("command_line %s", redact_sensitive_text(str(command_line)))
-        return command_line, inst_file, porter_env
+        return command_line, [inst_file, param_set_file], porter_env
 
     # Default path for non-firewall bundles only
     param_set_entries = []
@@ -249,7 +269,7 @@ async def build_porter_command(config, logger, msg_body, custom_action=False):
 
     command_line = [command]
     logger.info("command_line %s", redact_sensitive_text(str(command_line)))
-    return command_line, param_set_file, porter_env
+    return command_line, [param_set_file] if param_set_file else [], porter_env
 
 
 async def build_porter_command_for_outputs(msg_body):

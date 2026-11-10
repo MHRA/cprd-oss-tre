@@ -1,7 +1,7 @@
 ---
 schemaVersion: 1.0.0
 name: tre-shared-service-firewall
-version: 1.0.9
+version: 1.0.11
 description: "An Azure TRE Firewall shared service"
 dockerfile: Dockerfile.tmpl
 registry: azuretre
@@ -38,11 +38,13 @@ parameters:
     type: boolean
     default: false
   - name: rule_collections
-    type: string
+    type: file
+    path: /cnab/app/rule_collections.b64
     default: "W10=" # b64 for []
     description: "Application rule collection array"
   - name: network_rule_collections
-    type: string
+    type: file
+    path: /cnab/app/network_rule_collections.b64
     default: "W10=" # b64 for []
     description: "Network rule collection array"
   - name: sku_tier
@@ -60,8 +62,8 @@ install:
       vars:
         tre_id: ${ bundle.parameters.tre_id }
         tre_resource_id: ${ bundle.parameters.id }
-        api_driven_rule_collections_b64: ${ bundle.parameters.rule_collections }
-        api_driven_network_rule_collections_b64: ${ bundle.parameters.network_rule_collections }
+        api_driven_rule_collections_file: ${ bundle.parameters.rule_collections }
+        api_driven_network_rule_collections_file: ${ bundle.parameters.network_rule_collections }
         sku_tier: ${ bundle.parameters.sku_tier }
       backendConfig:
         resource_group_name: ${ bundle.parameters.tfstate_resource_group_name }
@@ -75,8 +77,8 @@ upgrade:
       vars:
         tre_id: ${ bundle.parameters.tre_id }
         tre_resource_id: ${ bundle.parameters.id }
-        api_driven_rule_collections_b64: ${ bundle.parameters.rule_collections }
-        api_driven_network_rule_collections_b64: ${ bundle.parameters.network_rule_collections }
+        api_driven_rule_collections_file: ${ bundle.parameters.rule_collections }
+        api_driven_network_rule_collections_file: ${ bundle.parameters.network_rule_collections }
         sku_tier: ${ bundle.parameters.sku_tier }
       backendConfig:
         resource_group_name: ${ bundle.parameters.tfstate_resource_group_name }
@@ -90,8 +92,8 @@ uninstall:
       vars:
         tre_id: ${ bundle.parameters.tre_id }
         tre_resource_id: ${ bundle.parameters.id }
-        api_driven_rule_collections_b64: ${ bundle.parameters.rule_collections }
-        api_driven_network_rule_collections_b64: ${ bundle.parameters.network_rule_collections }
+        api_driven_rule_collections_file: ${ bundle.parameters.rule_collections }
+        api_driven_network_rule_collections_file: ${ bundle.parameters.network_rule_collections }
         sku_tier: ${ bundle.parameters.sku_tier }
       backendConfig:
         resource_group_name: ${ bundle.parameters.tfstate_resource_group_name }
