@@ -5,6 +5,7 @@ from typing import Dict, Optional, Union
 import pandas as pd
 import logging
 import time
+import os
 
 from azure.mgmt.costmanagement import CostManagementClient
 from azure.mgmt.costmanagement.models import QueryGrouping, QueryAggregation, QueryDataset, QueryDefinition, \
@@ -22,8 +23,9 @@ from db.repositories.user_resources import UserResourceRepository
 from db.repositories.workspace_services import WorkspaceServiceRepository
 from db.repositories.workspaces import WorkspaceRepository
 from models.domain.costs import GranularityEnum, CostReport, WorkspaceCostReport, CostItem, WorkspaceServiceCostItem, \
-    CostRow, MHRAWorkspaceCosts, MHRACostItem
+    CostRow, MHRAWorkspaceCosts, MHRACostItem, UserDetails, UserResourceCostItem
 from models.domain.resource import Resource
+from models.domain.user_resource import UserResource
 
 from resources import constants
 
@@ -174,14 +176,25 @@ class CostService:
                                         workspace_services_repo: WorkspaceServiceRepository,
                                         user_resource_repo) -> WorkspaceCostReport:
 
+        logging.info(
+            f"Getting resource groups for workspace_id={workspace_id}"
+    )
         resource_groups_dict = self.get_resource_groups_by_tag(self.TRE_WORKSPACE_ID_TAG, workspace_id)
 
+        logging.info(
+            f"Found resource groups: {list(resource_groups_dict.keys())}"
+        )
         cache_key = f"{CostService.TRE_WORKSPACE_ID_TAG}_{workspace_id}_granularity{granularity}_from_date{from_date}_to_date{to_date}_rgs{'_'.join(list(resource_groups_dict.keys()))}"
         query_result = self.get_cached_result(cache_key)
 
+        logging.info(f"Cost cache result is None: {query_result is None}")
+
         if query_result is None:
             query_result = self.query_costs(CostService.TRE_WORKSPACE_ID_TAG, workspace_id, granularity, from_date, to_date, list(resource_groups_dict.keys()))
+            logging.info("Azure Cost Management query completed")
             self.cache_result(cache_key, query_result, timedelta(hours=2))
+        else:
+            logging.info("COST CACHE HIT")
 
         summerized_result = self.summerize_untagged(query_result, granularity, resource_groups_dict)
         query_result_dict = self.__query_result_to_dict(summerized_result, granularity)
@@ -281,11 +294,10 @@ class CostService:
                                                       workspace_service.id),
                 user_resources=[]
             )
+            workspace_service_cost_item.user_resources = [self.__extract_user_resource_cost_item(user_resource,
+                                                                                                  granularity,
+                                                                                                  query_result_dict)
 
-            workspace_service_cost_item.user_resources = [self.__extract_cost_item(user_resource,
-                                                                                   granularity,
-                                                                                   query_result_dict,
-                                                                                   CostService.TRE_USER_RESOURCE_ID_TAG)
                                                           for user_resource in
                                                           await user_resource_repo.get_user_resources_for_workspace_service(
                                                               workspace_id,
@@ -293,6 +305,31 @@ class CostService:
 
             workspace_services_costs.append(workspace_service_cost_item)
         return workspace_services_costs
+
+    def __extract_user_resource_cost_item(self, user_resource: UserResource, granularity: GranularityEnum,
+                                        query_result_dict: dict) -> UserResourceCostItem:
+        return UserResourceCostItem(
+            id=user_resource.id,
+            name=self.__get_resource_name(user_resource),
+            costs=self.__extract_cost_rows_by_tag(granularity, query_result_dict,
+                                                CostService.TRE_USER_RESOURCE_ID_TAG, user_resource.id),
+            user_details=self.__get_user_details(user_resource)
+        )
+
+    def __get_user_details(self, user_resource: UserResource) -> Optional[UserDetails]:
+        # `user_resource.user` is a snapshot of the owner (set when the VM was created/last patched,
+        # see resource_helpers.save_and_deploy_resource / ResourceRepository.patch_resource).
+        # `hostname` (not `display_name`, which may just hold the owner's name) identifies the actual VM.
+        owner = user_resource.user
+        if not owner:
+            return None
+
+        return UserDetails(
+            entra_id=owner.get("id") or user_resource.ownerId or None,
+            user_full_name=owner.get("name") or "",
+            email=owner.get("email"),
+            virtual_machine_name=user_resource.properties.get("hostname")
+        )
 
     def __create_cost_row(self, cost, currency: str, cost_date: date):
         return CostRow(cost=cost, currency=currency, date=cost_date)
@@ -335,6 +372,8 @@ class CostService:
                 raise e
         except HttpResponseError as e:
             logging.exception("Cost Management API error")
+            logging.error(f"Status code: {e.status_code}")
+            logging.error(f"Response headers: {dict(e.response.headers)}")
             if e.status_code == 429:
                 # Too many requests - Request is throttled.
                 # Retry after waiting for the time specified in the "x-ms-ratelimit-microsoft.consumption-retry-after" header.
