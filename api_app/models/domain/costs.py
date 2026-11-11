@@ -58,14 +58,25 @@ def generate_cost_report_dict_example(granularity: GranularityEnum):
     return cost_report
 
 
+def generate_user_resource_cost_item_dict_example(name: str, user_full_name: str, email: str, granularity: GranularityEnum):
+    cost_item_dict = generate_cost_item_dict_example(name, granularity)
+    cost_item_dict["user_details"] = dict(
+        entra_id=str(uuid.uuid4()),
+        user_full_name=user_full_name,
+        email=email,
+        virtual_machine_name=name
+    )
+    return cost_item_dict
+
+
 def generate_workspace_service_cost_report_dict_example(name: str, granularity: GranularityEnum):
     cost_report = dict(
         id=str(uuid.uuid4()),
         name=name,
         costs=[generate_cost_row_dict_example(granularity, CurrencyEnum.USD)],
-        user_resources=[generate_cost_item_dict_example("VM1", granularity),
-                        generate_cost_item_dict_example("VM2", granularity),
-                        generate_cost_item_dict_example("VM3", granularity)]
+        user_resources=[generate_user_resource_cost_item_dict_example("VM1", "Jane Smith", "jane.smith@example.com", granularity),
+                        generate_user_resource_cost_item_dict_example("VM2", "John Doe", "john.doe@example.com", granularity),
+                        generate_user_resource_cost_item_dict_example("VM3", "Alex Brown", "alex.brown@example.com", granularity)]
     )
 
     if granularity == GranularityEnum.daily:
