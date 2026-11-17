@@ -27,7 +27,9 @@ UNWANTED_LOGGERS = [
     "uamqp.authentication",
     "uamqp.c_uamqp",
     "uamqp.connection",
-    "uamqp.receiver"
+    "uamqp.receiver",
+    "azure.servicebus._pyamqp",
+    "azure.servicebus.aio._pyamqp"
 ]
 
 

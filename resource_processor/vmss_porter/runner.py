@@ -192,16 +192,16 @@ async def invoke_porter_action(msg_body: dict, sb_client: ServiceBusClient, mess
 
     # Build and run porter command (flagging if its a built-in action or custom so we can adapt porter command appropriately)
     is_custom_action = action not in ["install", "upgrade", "uninstall"]
-    porter_command, param_set_file, porter_env = await build_porter_command(config, message_logger_adapter, msg_body, is_custom_action)
+    porter_command, temp_files, porter_env = await build_porter_command(config, message_logger_adapter, msg_body, is_custom_action)
 
     message_logger_adapter.debug("Starting to run porter execution command...")
     returncode, _, err = await run_porter(porter_command, message_logger_adapter, porter_env)
     message_logger_adapter.debug("Finished running porter execution command.")
 
-    # Clean up the temporary parameter set file now that the porter command has completed
-    if param_set_file:
+    # Clean up the temporary files (installation/parameter set) now that the porter command has completed
+    for temp_file in (temp_files or []):
         try:
-            os.unlink(param_set_file)
+            os.unlink(temp_file)
         except OSError:
             pass
 
@@ -293,6 +293,8 @@ async def check_runners(processes: list, httpserver: Process, logger_adapter: lo
         if all(not process.is_alive() for process in processes):
             logger_adapter.error("All runner processes have failed!")
             httpserver.kill()
+            # exit so the container stops and docker (--restart always) starts a fresh one
+            return
 
 
 if __name__ == "__main__":
@@ -316,4 +318,5 @@ if __name__ == "__main__":
 
     asyncio.run(check_runners(processes, httpserver, logger_adapter))
 
-    logger_adapter.warn("Exiting main...")
+    logger_adapter.warning("Exiting main...")
+    sys.exit(1)

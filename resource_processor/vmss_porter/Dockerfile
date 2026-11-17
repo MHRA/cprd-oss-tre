@@ -1,12 +1,12 @@
 # syntax=docker/dockerfile:1
-FROM python:3.8-slim-bookworm
+FROM python:3.12-slim-bookworm
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
 RUN rm -f /etc/apt/apt.conf.d/docker-clean; echo 'Binary::apt::APT::Keep-Downloaded-Packages "true";' > /etc/apt/apt.conf.d/keep-cache
 
 # Install Azure CLI
-ARG AZURE_CLI_VERSION=2.57.0-1~bookworm
+ARG AZURE_CLI_VERSION=2.80.0-1~bookworm
 COPY scripts/azure-cli.sh /tmp/
 RUN --mount=type=cache,target=/var/cache/apt --mount=type=cache,target=/var/lib/apt \
     export AZURE_CLI_VERSION=${AZURE_CLI_VERSION} \

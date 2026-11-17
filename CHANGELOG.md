@@ -8,6 +8,8 @@ ENHANCEMENTS:
 
 BUG FIXES:
 
+* Shared service firewall: declare `rule_collections`/`network_rule_collections` as Porter `file` parameters so the bundle actually writes `rule_collections.b64`/`network_rule_collections.b64` to disk for Terraform to read
+
 COMPONENTS:
 
 ## 0.9.0 (February 9, 2023)

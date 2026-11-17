@@ -96,7 +96,7 @@ resource "azurerm_linux_function_app" "data_usage_enforcement" {
   # We are running a Python app.
   site_config {
     application_stack {
-      python_version = "3.10"
+      python_version = "3.12"
     }
     application_insights_connection_string = data.azurerm_application_insights.core.connection_string
     application_insights_key               = data.azurerm_application_insights.core.instrumentation_key
